@@ -34,15 +34,15 @@ class TACTiS(nn.Module):
 
         Parameters:
         -----------
-        hist_time: Tensor [batch, variables, time steps] or [batch, 1, time steps] or [batch, time steps]
+        hist_time: Tensor [batch, series, time steps] or [batch, 1, time steps] or [batch, time steps]
             A tensor containing the times associated with the values of hist_value.
-            If the time variable dimension is singleton or missing, then the time steps are taken as constant across all variables.
-        hist_value: Tensor [batch, variables, time steps]
+            If the series dimension is singleton or missing, then the time steps are taken as constant across all series.
+        hist_value: Tensor [batch, series, time steps]
             A tensor containing the values that will be available at inference time.
-        pred_time: Tensor [batch, variables, time steps] or [batch, 1, time steps] or [batch, time steps]
+        pred_time: Tensor [batch, series, time steps] or [batch, 1, time steps] or [batch, time steps]
             A tensor containing the times associated with the values of pred_value.
-            If the time variable dimension is singleton or missing, then the time steps are taken as constant across all variables.
-        pred_value: Tensor [batch, variables, time steps]
+            If the series dimension is singleton or missing, then the time steps are taken as constant across all series.
+        pred_value: Tensor [batch, series, time steps]
             A tensor containing the values that the model should learn to forecast at inference time.
 
         Returns:
@@ -60,17 +60,17 @@ class TACTiS(nn.Module):
         -----------
         num_samples: int
             How many samples to generate, must be >= 1.
-        hist_time: Tensor [batch, variables, time steps] or [batch, 1, time steps] or [batch, time steps]
+        hist_time: Tensor [batch, series, time steps] or [batch, 1, time steps] or [batch, time steps]
             A tensor containing the times associated with the values of hist_value.
-            If the time variable dimension is singleton or missing, then the time steps are taken as constant across all variables.
-        hist_value: Tensor [batch, variables, time steps]
+            If the series dimension is singleton or missing, then the time steps are taken as constant across all series.
+        hist_value: Tensor [batch, series, time steps]
             A tensor containing the available values
-        pred_time: Tensor [batch, variables, time steps] or [batch, 1, time steps] or [batch, time steps]
+        pred_time: Tensor [batch, series, time steps] or [batch, 1, time steps] or [batch, time steps]
             A tensor containing the times at which we want forecasts.
-            If the time variable dimension is singleton or missing, then the time steps are taken as constant across all variables.
+            If the series dimension is singleton or missing, then the time steps are taken as constant across all series.
 
         Returns:
         --------
-        samples: torch.Tensor [batch, variables, time steps, samples]
+        samples: torch.Tensor [batch, series, time steps, samples]
             Samples from the forecasted distribution.
         """
