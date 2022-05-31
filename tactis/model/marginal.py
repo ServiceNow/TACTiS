@@ -17,6 +17,7 @@ limitations under the License.
 import torch
 from torch import nn
 from typing import Tuple
+from .flow import DeepSigmoidFlow
 
 
 class DSFMarginal(nn.Module):
@@ -24,8 +25,36 @@ class DSFMarginal(nn.Module):
     Compute the marginals using a Deep Sigmoid Flow conditioned using a MLP.
     The conditioning MLP uses the embedding from the encoder as its input.
     """
-    def __init__(self):
+    def __init__(self, context_dim: int, mlp_layers: int, mlp_dim: int, flow_layers: int, flow_hid_dim: int):
+        """
+        Parameters:
+        -----------
+        context_dim: int
+            Size of the context (embedding created by the encoder) that will be sent to the conditioner.
+        mlp_layers: int
+            Number of layers for the conditioner MLP.
+        mlp_dim: int
+            Dimension of the hidden layers of the conditioner MLP.
+        flow_layers: int
+            Number of layers for the Dense Sigmoid Flow.
+        flow_hid_dim: int
+            Dimension of the hidden layers of the Dense Sigmoid Flow.
+        """
         super().__init__()
+
+        self.context_dim = context_dim
+        self.mlp_layers = mlp_layers
+        self.mlp_dim = mlp_dim
+        self.flow_layers = flow_layers
+        self.flow_hid_dim = flow_hid_dim
+
+        self.marginal_flow = DeepSigmoidFlow(n_layers=self.flow_layers, hidden_dim=self.flow_hid_dim)
+
+        elayers = [nn.Linear(self.context_dim, self.mlp_dim), nn.ReLU()]
+        for _ in range(1, self.mlp_layers):
+            elayers += [nn.Linear(self.mlp_dim, self.mlp_dim), nn.ReLU()]
+        elayers += [nn.Linear(self.mlp_dim, self.marginal_flow.total_params_length)]
+        self.marginal_conditioner = nn.Sequential(*elayers)
 
     def forward_logdet(self, context: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -52,9 +81,14 @@ class DSFMarginal(nn.Module):
             The series and time steps dimensions are merged.
             The shape of the output is the same as the shape of x.
         """
-        pass
+        marginal_params = self.marginal_conditioner(context)
+        # If x has both a variable and a sample dimension, then add a singleton dimension to marginal_params to have the correct shape
+        if marginal_params.dim() == x.dim():
+            marginal_params = marginal_params[:, :, None, :]
+        
+        return self.marginal_flow.forward(marginal_params, x)
 
-    def forward_logdet(self, context: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    def forward_no_logdet(self, context: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         """
         Compute the cumulative density function of a marginal conditioned using the given context, for the given value of x.
 
@@ -74,7 +108,13 @@ class DSFMarginal(nn.Module):
             The series and time steps dimensions are merged.
             The shape of the output is the same as the shape of x.
         """
-        pass
+        marginal_params = self.marginal_conditioner(context)
+        # If x has both a variable and a sample dimension, then add a singleton dimension to marginal_params to have the correct shape
+        if marginal_params.dim() == x.dim():
+            marginal_params = marginal_params[:, :, None, :]
+        
+        return self.marginal_flow.forward_no_logdet(marginal_params, x)
+
 
     def inverse(self, context: torch.Tensor, u: torch.Tensor, max_iter: int = 100, precision: float = 1e-6, max_value: float = 1000.0) -> torch.Tensor:
         """
@@ -105,4 +145,21 @@ class DSFMarginal(nn.Module):
             The series and time steps dimensions are merged.
             The shape of the output is the same as the shape of u.
         """
-        pass
+        marginal_params = self.marginal_conditioner(context)
+        # If u has both a variable and a sample dimension, then add a singleton dimension to marginal_params to have the correct shape
+        if marginal_params.dim() == u.dim():
+            marginal_params = marginal_params[:, :, None, :]
+
+        left = -max_value * torch.ones_like(u)
+        right = max_value * torch.ones_like(u)
+        for _ in range(max_iter):
+            mid = (left + right) / 2
+            error = self.marginal_flow.forward_no_logdet(marginal_params, mid) - u
+            left[error <= 0] = mid[error <= 0]
+            right[error >= 0] = mid[error >= 0]
+
+            max_error = error.abs().max().item()
+            if max_error < precision:
+                break
+        return mid
+

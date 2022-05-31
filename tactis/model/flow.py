@@ -116,7 +116,8 @@ class SigmoidFlow(nn.Module):
         logj = log_sum_exp(logj, dim=-1, keepdim=False)  # b, v
 
         if self.no_logit:
-            logdet = logj.sum(dim=-1) + logdet
+            # Only keep the batch dimension, summing all others in case this method is called with more dimensions
+            logdet = logj.sum(dim=tuple(range(1, logj.dim()))) + logdet
             return x_pre, logdet
 
         x_pre_clipped = x_pre * (1 - EPSILON) + EPSILON * 0.5  # b, v
@@ -124,7 +125,8 @@ class SigmoidFlow(nn.Module):
 
         logdet_ = logj + math.log(1 - EPSILON) - (torch.log(x_pre_clipped) + torch.log(-x_pre_clipped + 1))  # b, v
 
-        logdet = logdet_.sum(dim=-1) + logdet
+        # Only keep the batch dimension, summing all others in case this method is called with more dimensions
+        logdet = logdet_.sum(dim=tuple(range(1, logdet_.dim()))) + logdet
 
         return xnew, logdet
 
