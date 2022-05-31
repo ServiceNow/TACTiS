@@ -31,6 +31,7 @@ class Encoder(nn.Module):
 
     The decoder returns an output containing an embedding for each series and time step.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -68,6 +69,7 @@ class TemporalEncoder(nn.Module):
 
     The decoder returns an output containing an embedding for each series and time step.
     """
+
     def __init__(self):
         super().__init__()
 

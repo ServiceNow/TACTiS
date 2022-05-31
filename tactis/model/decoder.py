@@ -22,6 +22,7 @@ class CopulaDecoder(nn.Module):
     """
     A decoder which forecast using a distribution built from a copula and marginal distributions.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -39,7 +40,7 @@ class CopulaDecoder(nn.Module):
             The decoder only forecasts values for which the mask is set to False.
         true_value: Tensor [batch, series, time steps]
             A tensor containing the true value for the values to be forecasted.
-            Only the values where the mask is set to False will be considered in the loss function. 
+            Only the values where the mask is set to False will be considered in the loss function.
 
         Returns:
         --------
@@ -48,7 +49,9 @@ class CopulaDecoder(nn.Module):
         """
         pass
 
-    def sample(self, num_samples: int, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor) -> torch.Tensor:
+    def sample(
+        self, num_samples: int, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor
+    ) -> torch.Tensor:
         """
         Generate the given number of samples from the forecasted distribution.
 
@@ -78,10 +81,17 @@ class AttentionalCopula(nn.Module):
     """
     A non-parametric copula based on attention between the various variables.
     """
+
     def __init__(self):
         super().__init__()
 
-    def loss(self, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor, pred_true_u: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self,
+        hist_encoded: torch.Tensor,
+        hist_true_u: torch.Tensor,
+        pred_encoded: torch.Tensor,
+        pred_true_u: torch.Tensor,
+    ) -> torch.Tensor:
         """
         Compute the loss function of the copula portion of the decoder.
 
@@ -107,7 +117,9 @@ class AttentionalCopula(nn.Module):
         """
         pass
 
-    def sample(self, num_samples: int, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor) -> torch.Tensor:
+    def sample(
+        self, num_samples: int, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor
+    ) -> torch.Tensor:
         """
         Generate the given number of samples from the forecasted copula.
 
@@ -138,10 +150,17 @@ class TrivialCopula(nn.Module):
     """
     The trivial copula where all variables are independent.
     """
+
     def __init__(self):
         super().__init__()
 
-    def loss(self, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor, pred_true_u: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self,
+        hist_encoded: torch.Tensor,
+        hist_true_u: torch.Tensor,
+        pred_encoded: torch.Tensor,
+        pred_true_u: torch.Tensor,
+    ) -> torch.Tensor:
         """
         Compute the loss function of the copula portion of the decoder.
 
@@ -168,7 +187,9 @@ class TrivialCopula(nn.Module):
         """
         pass
 
-    def sample(self, num_samples: int, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor) -> torch.Tensor:
+    def sample(
+        self, num_samples: int, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor
+    ) -> torch.Tensor:
         """
         Generate the given number of samples from the trivial copula.
 
@@ -199,6 +220,7 @@ class GaussianDecoder(nn.Module):
     """
     A decoder which forecast using a low-rank multivariate Gaussian distribution.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -216,7 +238,7 @@ class GaussianDecoder(nn.Module):
             The decoder only forecasts values for which the mask is set to False.
         true_value: Tensor [batch, series, time steps]
             A tensor containing the true value for the values to be forecasted.
-            Only the values where the mask is set to False will be considered in the loss function. 
+            Only the values where the mask is set to False will be considered in the loss function.
 
         Returns:
         --------
@@ -225,7 +247,9 @@ class GaussianDecoder(nn.Module):
         """
         pass
 
-    def sample(self, num_samples: int, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor) -> torch.Tensor:
+    def sample(
+        self, num_samples: int, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor
+    ) -> torch.Tensor:
         """
         Generate the given number of samples from the forecasted distribution.
 
@@ -249,4 +273,3 @@ class GaussianDecoder(nn.Module):
             Samples drawn from the forecasted distribution.
         """
         pass
-

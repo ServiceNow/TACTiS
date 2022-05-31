@@ -25,6 +25,7 @@ class DSFMarginal(nn.Module):
     Compute the marginals using a Deep Sigmoid Flow conditioned using a MLP.
     The conditioning MLP uses the embedding from the encoder as its input.
     """
+
     def __init__(self, context_dim: int, mlp_layers: int, mlp_dim: int, flow_layers: int, flow_hid_dim: int):
         """
         Parameters:
@@ -85,7 +86,7 @@ class DSFMarginal(nn.Module):
         # If x has both a variable and a sample dimension, then add a singleton dimension to marginal_params to have the correct shape
         if marginal_params.dim() == x.dim():
             marginal_params = marginal_params[:, :, None, :]
-        
+
         return self.marginal_flow.forward(marginal_params, x)
 
     def forward_no_logdet(self, context: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
@@ -112,11 +113,17 @@ class DSFMarginal(nn.Module):
         # If x has both a variable and a sample dimension, then add a singleton dimension to marginal_params to have the correct shape
         if marginal_params.dim() == x.dim():
             marginal_params = marginal_params[:, :, None, :]
-        
+
         return self.marginal_flow.forward_no_logdet(marginal_params, x)
 
-
-    def inverse(self, context: torch.Tensor, u: torch.Tensor, max_iter: int = 100, precision: float = 1e-6, max_value: float = 1000.0) -> torch.Tensor:
+    def inverse(
+        self,
+        context: torch.Tensor,
+        u: torch.Tensor,
+        max_iter: int = 100,
+        precision: float = 1e-6,
+        max_value: float = 1000.0,
+    ) -> torch.Tensor:
         """
         Compute the inverse cumulative density function of a marginal conditioned using the given context, for the given value of u.
         This method uses a dichotomic search.
@@ -162,4 +169,3 @@ class DSFMarginal(nn.Module):
             if max_error < precision:
                 break
         return mid
-
