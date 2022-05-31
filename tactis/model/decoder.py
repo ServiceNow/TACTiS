@@ -31,13 +31,13 @@ class CopulaDecoder(nn.Module):
 
         Parameters:
         -----------
-        encoded: Tensor [batch, variables, time steps, embedding dimension]
+        encoded: Tensor [batch, series, time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step.
-            This embedding is coming from the encoder, so contains shared information across variables and time steps.
-        mask: BoolTensor [batch, variables, time steps]
+            This embedding is coming from the encoder, so contains shared information across series and time steps.
+        mask: BoolTensor [batch, series, time steps]
             A tensor containing a mask indicating whether a given value was available for the encoder.
             The decoder only forecasts values for which the mask is set to False.
-        true_value: Tensor [batch, variables, time steps]
+        true_value: Tensor [batch, series, time steps]
             A tensor containing the true value for the values to be forecasted.
             Only the values where the mask is set to False will be considered in the loss function. 
 
@@ -56,19 +56,19 @@ class CopulaDecoder(nn.Module):
         -----------
         num_samples: int
             How many samples to generate, must be >= 1.
-        encoded: Tensor [batch, variables, time steps, embedding dimension]
+        encoded: Tensor [batch, series, time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step.
-            This embedding is coming from the encoder, so contains shared information across variables and time steps.
-        mask: BoolTensor [batch, variables, time steps]
+            This embedding is coming from the encoder, so contains shared information across series and time steps.
+        mask: BoolTensor [batch, series, time steps]
             A tensor containing a mask indicating whether a given value was available for the encoder.
             The decoder only forecasts values for which the mask is set to False.
-        true_value: Tensor [batch, variables, time steps]
+        true_value: Tensor [batch, series, time steps]
             A tensor containing the true value for the values to be forecasted.
             The values where the mask is set to True will be copied as-is in the output.
 
         Returns:
         --------
-        samples: torch.Tensor [batch, variables, time steps, samples]
+        samples: torch.Tensor [batch, series, time steps, samples]
             Samples drawn from the forecasted distribution.
         """
         pass
@@ -87,18 +87,18 @@ class AttentionalCopula(nn.Module):
 
         Parameters:
         -----------
-        hist_encoded: Tensor [batch, variables * time steps, embedding dimension]
-            A tensor containing an embedding for each variable and time step that does not have to be forecasted.
-            The variables and time steps dimensions are merged.
-        hist_true_u: Tensor [batch, variables * time steps]
+        hist_encoded: Tensor [batch, series * time steps, embedding dimension]
+            A tensor containing an embedding for each series and time step that does not have to be forecasted.
+            The series and time steps dimensions are merged.
+        hist_true_u: Tensor [batch, series * time steps]
             A tensor containing the true value for the values that do not have to be forecasted, transformed by the marginal distribution into U(0,1) values.
-            The variables and time steps dimensions are merged.
-        pred_encoded: Tensor [batch, variables * time steps, embedding dimension]
+            The series and time steps dimensions are merged.
+        pred_encoded: Tensor [batch, series * time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step that does have to be forecasted.
-            The variables and time steps dimensions are merged.
-        pred_true_u: Tensor [batch, variables * time steps]
+            The series and time steps dimensions are merged.
+        pred_true_u: Tensor [batch, series * time steps]
             A tensor containing the true value for the values to be forecasted, transformed by the marginal distribution into U(0,1) values.
-            The variables and time steps dimensions are merged.
+            The series and time steps dimensions are merged.
 
         Returns:
         --------
@@ -115,21 +115,21 @@ class AttentionalCopula(nn.Module):
         -----------
         num_samples: int
             How many samples to generate, must be >= 1.
-        hist_encoded: Tensor [batch, variables * time steps, embedding dimension]
+        hist_encoded: Tensor [batch, series * time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step that does not have to be forecasted.
-            The variables and time steps dimensions are merged.
-        hist_true_u: Tensor [batch, variables * time steps]
+            The series and time steps dimensions are merged.
+        hist_true_u: Tensor [batch, series * time steps]
             A tensor containing the true value for the values that do not have to be forecasted, transformed by the marginal distribution into U(0,1) values.
-            The variables and time steps dimensions are merged.
-        pred_encoded: Tensor [batch, variables * time steps, embedding dimension]
+            The series and time steps dimensions are merged.
+        pred_encoded: Tensor [batch, series * time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step that does have to be forecasted.
-            The variables and time steps dimensions are merged.
+            The series and time steps dimensions are merged.
 
         Returns:
         --------
-        samples: torch.Tensor [batch, variables * time steps, samples]
+        samples: torch.Tensor [batch, series * time steps, samples]
             Samples drawn from the forecasted copula, thus in the [0, 1] range.
-            The variables and time steps dimensions are merged.
+            The series and time steps dimensions are merged.
         """
         pass
 
@@ -147,18 +147,18 @@ class TrivialCopula(nn.Module):
 
         Parameters:
         -----------
-        hist_encoded: Tensor [batch, variables * time steps, embedding dimension]
+        hist_encoded: Tensor [batch, series * time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step that does not have to be forecasted.
-            The variables and time steps dimensions are merged.
-        hist_true_u: Tensor [batch, variables * time steps]
+            The series and time steps dimensions are merged.
+        hist_true_u: Tensor [batch, series * time steps]
             A tensor containing the true value for the values that do not have to be forecasted, transformed by the marginal distribution into U(0,1) values.
-            The variables and time steps dimensions are merged.
-        pred_encoded: Tensor [batch, variables * time steps, embedding dimension]
+            The series and time steps dimensions are merged.
+        pred_encoded: Tensor [batch, series * time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step that does have to be forecasted.
-            The variables and time steps dimensions are merged.
-        pred_true_u: Tensor [batch, variables * time steps]
+            The series and time steps dimensions are merged.
+        pred_true_u: Tensor [batch, series * time steps]
             A tensor containing the true value for the values to be forecasted, transformed by the marginal distribution into U(0,1) values.
-            The variables and time steps dimensions are merged.
+            The series and time steps dimensions are merged.
 
         Returns:
         --------
@@ -176,21 +176,21 @@ class TrivialCopula(nn.Module):
         -----------
         num_samples: int
             How many samples to generate, must be >= 1.
-        hist_encoded: Tensor [batch, variables * time steps, embedding dimension]
+        hist_encoded: Tensor [batch, series * time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step that does not have to be forecasted.
-            The variables and time steps dimensions are merged.
-        hist_true_u: Tensor [batch, variables * time steps]
+            The series and time steps dimensions are merged.
+        hist_true_u: Tensor [batch, series * time steps]
             A tensor containing the true value for the values that do not have to be forecasted, transformed by the marginal distribution into U(0,1) values.
-            The variables and time steps dimensions are merged.
-        pred_encoded: Tensor [batch, variables * time steps, embedding dimension]
+            The series and time steps dimensions are merged.
+        pred_encoded: Tensor [batch, series * time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step that does have to be forecasted.
-            The variables and time steps dimensions are merged.
+            The series and time steps dimensions are merged.
 
         Returns:
         --------
-        samples: torch.Tensor [batch, variables * time steps, samples]
+        samples: torch.Tensor [batch, series * time steps, samples]
             Samples drawn from the trivial copula, which is equal to the multi-dimensional Uniform(0, 1) distribution.
-            The variables and time steps dimensions are merged.
+            The series and time steps dimensions are merged.
         """
         pass
 
@@ -208,13 +208,13 @@ class GaussianDecoder(nn.Module):
 
         Parameters:
         -----------
-        encoded: Tensor [batch, variables, time steps, embedding dimension]
+        encoded: Tensor [batch, series, time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step.
-            This embedding is coming from the encoder, so contains shared information across variables and time steps.
-        mask: BoolTensor [batch, variables, time steps]
+            This embedding is coming from the encoder, so contains shared information across series and time steps.
+        mask: BoolTensor [batch, series, time steps]
             A tensor containing a mask indicating whether a given value was available for the encoder.
             The decoder only forecasts values for which the mask is set to False.
-        true_value: Tensor [batch, variables, time steps]
+        true_value: Tensor [batch, series, time steps]
             A tensor containing the true value for the values to be forecasted.
             Only the values where the mask is set to False will be considered in the loss function. 
 
@@ -233,19 +233,19 @@ class GaussianDecoder(nn.Module):
         -----------
         num_samples: int
             How many samples to generate, must be >= 1.
-        encoded: Tensor [batch, variables, time steps, embedding dimension]
+        encoded: Tensor [batch, series, time steps, embedding dimension]
             A tensor containing an embedding for each variable and time step.
-            This embedding is coming from the encoder, so contains shared information across variables and time steps.
-        mask: BoolTensor [batch, variables, time steps]
+            This embedding is coming from the encoder, so contains shared information across series and time steps.
+        mask: BoolTensor [batch, series, time steps]
             A tensor containing a mask indicating whether a given value was available for the encoder.
             The decoder only forecasts values for which the mask is set to False.
-        true_value: Tensor [batch, variables, time steps]
+        true_value: Tensor [batch, series, time steps]
             A tensor containing the true value for the values to be forecasted.
             The values where the mask is set to True will be copied as-is in the output.
 
         Returns:
         --------
-        samples: torch.Tensor [batch, variables, time steps, samples]
+        samples: torch.Tensor [batch, series, time steps, samples]
             Samples drawn from the forecasted distribution.
         """
         pass
