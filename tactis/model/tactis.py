@@ -25,10 +25,13 @@ class TACTiS(nn.Module):
     The role of this module is to handle everything outside of the encoder and decoder.
     This consists mainly the data manipulation ahead of the encoder and after the decoder.
     """
+
     def __init__(self):
         super().__init__()
 
-    def forward(self, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor, pred_value: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor, pred_value: torch.Tensor
+    ) -> torch.Tensor:
         """
         Compute the loss function of the model.
 
@@ -51,8 +54,10 @@ class TACTiS(nn.Module):
             The loss function of TACTiS, with lower values being better.
         """
         pass
-    
-    def sample(self, num_samples: int, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor) -> torch.Tensor:
+
+    def sample(
+        self, num_samples: int, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor
+    ) -> torch.Tensor:
         """
         Generate the given number of samples from the forecasted distribution.
 
