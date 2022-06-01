@@ -17,22 +17,25 @@ limitations under the License.
 import torch
 from torch import nn
 
+from typing import Optional, Dict, Any
+
+from .marginal import DSFMarginal
+
 
 def _merge_series_time_dims(x: torch.Tensor) -> torch.Tensor:
     """
-    Convert a Tensor with dimensions [batch, series, time steps] to one with dimensions [batch, series * time steps]
+    Convert a Tensor with dimensions [batch, series, time steps, ...] to one with dimensions [batch, series * time steps, ...]
     """
-    assert x.dim() == 3
-    return x.view(x.shape[0], x.shape[1] * x.shape[2])
+    assert x.dim() >= 3
+    return x.view((x.shape[0], x.shape[1] * x.shape[2]) + x.shape[3:])
 
 
-def _split_series_time_dims(x: torch.Tensor, old_shape: torch.Size) -> torch.Tensor:
+def _split_series_time_dims(x: torch.Tensor, target_shape: torch.Size) -> torch.Tensor:
     """
-    Convert a Tensor with dimensions [batch, series * time steps] to one with dimensions [batch, series, time steps]
+    Convert a Tensor with dimensions [batch, series * time steps, ...] to one with dimensions [batch, series, time steps, ...]
     """
-    assert x.dim() == 2
-    assert len(old_shape) == 3
-    return x.view(old_shape[0], old_shape[1], old_shape[2])
+    assert x.dim() + 1 == len(target_shape)
+    return x.view(target_shape)
 
 
 class CopulaDecoder(nn.Module):
@@ -40,8 +43,47 @@ class CopulaDecoder(nn.Module):
     A decoder which forecast using a distribution built from a copula and marginal distributions.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        input_dim: int,
+        min_u: float = 0.0,
+        max_u: float = 1.0,
+        skip_sampling_marginal: bool = False,
+        trivial_copula: Optional[Dict[str, Any]] = None,
+        dsf_marginal: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Parameters:
+        -----------
+        input_dim: int
+            The dimension of the encoded representation (upstream data encoder).
+        min_u: float, default to 0.0
+        max_u: float, default to 1.0
+            The values sampled from the copula will be scaled from [0, 1] to [min_u, max_u] before being sent to the marginal.
+        skip_sampling_marginal: bool, default to False
+            If set to True, then the output from the copula will not be transformed using the marginal during sampling.
+            Does not impact the other transformations from observed values to the [0, 1] range.
+        trivial_copula: Dict[str, Any], default to None
+            If set to a non-None value, uses a TrivialCopula.
+            The options sent to the TrivialCopula is content of this dictionary.
+        dsf_marginal: Dict[str, Any], default to None
+            If set to a non-None value, uses a DSFMarginal.
+            The options sent to the DSFMarginal is content of this dictionary.
+        """
         super().__init__()
+
+        assert (trivial_copula is not None) == 1, "Must select exactly one type of copula"
+        assert (dsf_marginal is not None) == 1, "Must select exactly one type of marginal"
+
+        self.min_u = min_u
+        self.max_u = max_u
+        self.skip_sampling_marginal = skip_sampling_marginal
+
+        if trivial_copula is not None:
+            self.copula = TrivialCopula(**trivial_copula)
+        
+        if dsf_marginal is not None:
+            self.marginal = DSFMarginal(context_dim=input_dim, **dsf_marginal)
 
     def loss(self, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor) -> torch.Tensor:
         """
@@ -64,7 +106,31 @@ class CopulaDecoder(nn.Module):
         loss: torch.Tensor [batch]
             The loss function, equal to the negative log likelihood of the distribution.
         """
-        pass
+        encoded = _merge_series_time_dims(encoded)
+        mask = _merge_series_time_dims(mask)
+        true_value = _merge_series_time_dims(true_value)
+
+        # Assume that the mask is constant inside the batch
+        mask = mask[0, :]
+
+        hist_encoded = encoded[:, mask, :]
+        pred_encoded = encoded[:, ~mask, :]
+        hist_true_x = true_value[:, mask]
+        pred_true_x = true_value[:, ~mask]
+
+        # Transform to [0,1] using the marginals
+        hist_true_u = self.marginal.forward_no_logdet(hist_encoded, hist_true_x)
+        pred_true_u, marginal_logdet = self.marginal.forward_logdet(pred_encoded, pred_true_x)
+
+        copula_loss = self.copula.loss(
+            hist_encoded=hist_encoded,
+            hist_true_u=hist_true_u,
+            pred_encoded=pred_encoded,
+            pred_true_u=pred_true_u,
+        )
+
+        # Loss = negative log likelihood
+        return copula_loss - marginal_logdet
 
     def sample(
         self, num_samples: int, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor
@@ -80,7 +146,7 @@ class CopulaDecoder(nn.Module):
             A tensor containing an embedding for each variable and time step.
             This embedding is coming from the encoder, so contains shared information across series and time steps.
         mask: BoolTensor [batch, series, time steps]
-            A tensor containing a mask indicating whether a given value was available for the encoder.
+            A tensor containing a mask indicating whether a given value is masked (available) for the encoder.
             The decoder only forecasts values for which the mask is set to False.
         true_value: Tensor [batch, series, time steps]
             A tensor containing the true value for the values to be forecasted.
@@ -91,7 +157,41 @@ class CopulaDecoder(nn.Module):
         samples: torch.Tensor [batch, series, time steps, samples]
             Samples drawn from the forecasted distribution.
         """
-        pass
+        target_shape = torch.Size((true_value.shape[0], true_value.shape[1], true_value.shape[2], num_samples))
+
+        encoded = _merge_series_time_dims(encoded)
+        mask = _merge_series_time_dims(mask)
+        true_value = _merge_series_time_dims(true_value)
+
+        # Assume that the mask is constant inside the batch
+        mask = mask[0, :]
+
+        hist_encoded = encoded[:, mask, :]
+        pred_encoded = encoded[:, ~mask, :]
+        hist_true_x = true_value[:, mask]
+
+        # Transform to [0,1] using the marginals
+        hist_true_u = self.marginal.forward_no_logdet(hist_encoded, hist_true_x)
+
+        pred_samples = self.copula.sample(
+            num_samples=num_samples,
+            hist_encoded=hist_encoded,
+            hist_true_u=hist_true_u,
+            pred_encoded=pred_encoded,
+        )
+        if not self.skip_sampling_marginal:
+            # Transform away from [0,1] using the marginals
+            pred_samples = self.min_u + (self.max_u - self.min_u) * pred_samples
+            pred_samples = self.marginal.inverse(
+                pred_encoded,
+                pred_samples,
+            )
+
+        samples = torch.zeros(target_shape[0], target_shape[1] * target_shape[2], target_shape[3], device=encoded.device)
+        samples[:, mask, :] = hist_true_x[:, :, None]
+        samples[:, ~mask, :] = pred_samples
+
+        return _split_series_time_dims(samples, target_shape)
 
 
 class AttentionalCopula(nn.Module):
@@ -129,7 +229,7 @@ class AttentionalCopula(nn.Module):
 
         Returns:
         --------
-        embedding: torch.Tensor [batch]
+        loss: torch.Tensor [batch]
             The loss function, equal to the negative log likelihood of the copula.
         """
         pass
