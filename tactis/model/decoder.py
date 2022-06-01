@@ -10,12 +10,29 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
->> The various decoders for TACTiS, to output 
+>> The various decoders for TACTiS, to output the forecasted distributions.
 """
 
 
 import torch
 from torch import nn
+
+
+def _merge_series_time_dims(x: torch.Tensor) -> torch.Tensor:
+    """
+    Convert a Tensor with dimensions [batch, series, time steps] to one with dimensions [batch, series * time steps]
+    """
+    assert x.dim() == 3
+    return x.view(x.shape[0], x.shape[1] * x.shape[2])
+
+
+def _split_series_time_dims(x: torch.Tensor, old_shape: torch.Size) -> torch.Tensor:
+    """
+    Convert a Tensor with dimensions [batch, series * time steps] to one with dimensions [batch, series, time steps]
+    """
+    assert x.dim() == 2
+    assert len(old_shape) == 3
+    return x.view(old_shape[0], old_shape[1], old_shape[2])
 
 
 class CopulaDecoder(nn.Module):
@@ -44,7 +61,7 @@ class CopulaDecoder(nn.Module):
 
         Returns:
         --------
-        embedding: torch.Tensor [batch]
+        loss: torch.Tensor [batch]
             The loss function, equal to the negative log likelihood of the distribution.
         """
         pass
@@ -185,7 +202,10 @@ class TrivialCopula(nn.Module):
             The loss function, equal to the negative log likelihood of the copula.
             This is always equal to zero.
         """
-        pass
+        batch_size = hist_encoded.shape[0]
+        device = hist_encoded.device
+        # Trivially, the probability of all u is equal to 1 if in the unit cube (which it should always be by construction)
+        return torch.zeros(batch_size, device=device)
 
     def sample(
         self, num_samples: int, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor
@@ -213,7 +233,9 @@ class TrivialCopula(nn.Module):
             Samples drawn from the trivial copula, which is equal to the multi-dimensional Uniform(0, 1) distribution.
             The series and time steps dimensions are merged.
         """
-        pass
+        num_batches, num_variables, _ = pred_encoded.shape
+        device = pred_encoded.device
+        return torch.rand(num_batches, num_variables, num_samples, device=device)
 
 
 class GaussianDecoder(nn.Module):
