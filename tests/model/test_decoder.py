@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from tactis.model.decoder import CopulaDecoder, TrivialCopula, _split_series_time_dims, _merge_series_time_dims
+from tactis.model.decoder import CopulaDecoder, AttentionalCopula, TrivialCopula, _split_series_time_dims, _merge_series_time_dims
 
 import torch
 from torch import nn
@@ -228,6 +228,71 @@ def test_decoder_sample_scaling():
     u = net.marginal.inverse_params["u"]
     assert u.min() >= min_u
     assert u.max() <= max_u
+
+
+def test_attentional_copula_loss():
+    """
+    Test that the attentional copula loss function runs without error.
+    We cannot direcly test its accuracy due to the model complexity.
+    """
+    num_batches = 4
+    num_var_hist = 7
+    num_var_pred = 8
+    embed_dim = 5
+
+    net = AttentionalCopula(
+        input_dim=embed_dim,
+        attention_heads=3,
+        attention_layers=2,
+        attention_dim=13,
+        mlp_layers=4,
+        mlp_dim=9,
+        resolution=16,
+        dropout=0.2,
+        fixed_permutation=False,
+    )
+
+    hist_encoded = torch.randn(num_batches, num_var_hist, embed_dim)
+    hist_true_u = torch.randn(num_batches, num_var_hist)
+    pred_encoded = torch.randn(num_batches, num_var_pred, embed_dim)
+    pred_true_u = torch.randn(num_batches, num_var_pred)
+
+    loss = net.loss(hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded, pred_true_u=pred_true_u)
+
+    assert loss.shape == (num_batches, )
+
+def test_attentional_copula_sample():
+    """
+    Test that the attentional copula sampling method runs without error.
+    We cannot direcly test its accuracy due to the model complexity.
+    """
+    num_batches = 4
+    num_var_hist = 7
+    num_var_pred = 8
+    embed_dim = 5
+    num_samples = 9
+
+    net = AttentionalCopula(
+        input_dim=embed_dim,
+        attention_heads=3,
+        attention_layers=2,
+        attention_dim=13,
+        mlp_layers=4,
+        mlp_dim=9,
+        resolution=16,
+        dropout=0.2,
+        fixed_permutation=False,
+    )
+
+    hist_encoded = torch.randn(num_batches, num_var_hist, embed_dim)
+    hist_true_u = torch.randn(num_batches, num_var_hist)
+    pred_encoded = torch.randn(num_batches, num_var_pred, embed_dim)
+
+    samples = net.sample(num_samples=num_samples, hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded)
+
+    assert samples.shape == (num_batches, num_var_pred, num_samples)
+    assert (samples >= 0).all()
+    assert (samples <= 1).all()
 
 
 def test_trivial_copula_loss():
