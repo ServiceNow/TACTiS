@@ -15,12 +15,12 @@ limitations under the License.
 
 
 import math
+from typing import Any, Dict, Optional, Tuple, Type
+
 import torch
 from torch import nn
 from torch.distributions import LowRankMultivariateNormal
 from torch.nn import functional
-
-from typing import Optional, Dict, Any, Tuple, Type
 
 from .marginal import DSFMarginal
 

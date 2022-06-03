@@ -11,16 +11,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import torch
 from tactis.model.decoder import (
-    CopulaDecoder,
     AttentionalCopula,
+    CopulaDecoder,
     GaussianDecoder,
     TrivialCopula,
-    _split_series_time_dims,
     _merge_series_time_dims,
+    _split_series_time_dims,
 )
-
-import torch
 from torch import nn
 
 
@@ -393,7 +392,6 @@ def test_gaussian_loss():
     num_hist_time = 2
     num_pred_time = 3
     embed_dim = 6
-    num_samples = 7
 
     net = GaussianDecoder(
         input_dim=embed_dim,

@@ -11,9 +11,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from tactis.model.marginal import DSFMarginal
-
 import torch
+from tactis.model.marginal import DSFMarginal
 
 
 def test_monotonicity():
