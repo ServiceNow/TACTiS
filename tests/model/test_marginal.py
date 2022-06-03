@@ -33,7 +33,7 @@ def test_monotonicity():
     num_variables = 3
     context = torch.randn(num_batches, num_variables, net.context_dim)
     x = torch.arange(-10, 10, 0.1).repeat(num_batches, num_variables, 1)
-    
+
     u = net.forward_no_logdet(context=context, x=x)
 
     diff = u[:, :, 1:] - u[:, :, :-1]
@@ -56,7 +56,7 @@ def test_same_forward():
     num_variables = 3
     context = torch.randn(num_batches, num_variables, net.context_dim)
     x = torch.arange(-10, 10, 0.1).repeat(num_batches, num_variables, 1)
-    
+
     u_no_logdet = net.forward_no_logdet(context=context, x=x)
     u_logdet, _ = net.forward_logdet(context=context, x=x)
 
@@ -95,6 +95,7 @@ def test_bounds_at_inf():
     assert u_neg_min >= 0
     assert u_neg_max <= 1e-2
 
+
 def test_inverse_monotonicity():
     """
     Test that the DSF inverse function is monotonic.
@@ -111,8 +112,8 @@ def test_inverse_monotonicity():
     num_batches = 2
     num_variables = 3
     context = torch.randn(num_batches, num_variables, net.context_dim)
-    u = torch.arange(1e-3, 1-1e-3, 1e-3).repeat(num_batches, num_variables, 1)
-    
+    u = torch.arange(1e-3, 1 - 1e-3, 1e-3).repeat(num_batches, num_variables, 1)
+
     x = net.inverse(context=context, u=u)
 
     diff = x[:, :, 1:] - x[:, :, :-1]
@@ -136,8 +137,8 @@ def test_inverse_forward():
     num_variables = 3
     context = torch.randn(num_batches, num_variables, net.context_dim)
     # Avoid the extremes due to the maximum x values in the inverse function
-    u = torch.arange(1e-1, 1-1e-1, 1e-3).repeat(num_batches, num_variables, 1)
-    
+    u = torch.arange(1e-1, 1 - 1e-1, 1e-3).repeat(num_batches, num_variables, 1)
+
     x = net.inverse(context=context, u=u, precision=1e-6)
     u_after = net.forward_no_logdet(context=context, x=x)
 

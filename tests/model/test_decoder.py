@@ -11,7 +11,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from tactis.model.decoder import CopulaDecoder, AttentionalCopula, GaussianDecoder, TrivialCopula, _split_series_time_dims, _merge_series_time_dims
+from tactis.model.decoder import (
+    CopulaDecoder,
+    AttentionalCopula,
+    GaussianDecoder,
+    TrivialCopula,
+    _split_series_time_dims,
+    _merge_series_time_dims,
+)
 
 import torch
 from torch import nn
@@ -40,6 +47,7 @@ class __ParameterSavingShell(nn.Module):
     A module that goes around a copula or a marginal.
     It saves all of the parameters sent to the various methods for testing purposes.
     """
+
     def __init__(self, net):
         super().__init__()
         self.net = net
@@ -51,19 +59,19 @@ class __ParameterSavingShell(nn.Module):
 
     def loss(self, hist_encoded, hist_true_u, pred_encoded, pred_true_u):
         self.loss_params = {
-            "hist_encoded" : hist_encoded,
-            "hist_true_u" : hist_true_u,
-            "pred_encoded" : pred_encoded,
-            "pred_true_u" :  pred_true_u,
+            "hist_encoded": hist_encoded,
+            "hist_true_u": hist_true_u,
+            "pred_encoded": pred_encoded,
+            "pred_true_u": pred_true_u,
         }
         return self.net.loss(hist_encoded, hist_true_u, pred_encoded, pred_true_u)
 
     def sample(self, num_samples, hist_encoded, hist_true_u, pred_encoded):
         self.sample_params = {
             "num_samples": num_samples,
-            "hist_encoded" : hist_encoded,
-            "hist_true_u" : hist_true_u,
-            "pred_encoded" : pred_encoded,
+            "hist_encoded": hist_encoded,
+            "hist_true_u": hist_true_u,
+            "pred_encoded": pred_encoded,
         }
         return self.net.sample(num_samples, hist_encoded, hist_true_u, pred_encoded)
 
@@ -108,15 +116,23 @@ def test_masking_loss():
             "mlp_dim": 1,
             "flow_layers": 1,
             "flow_hid_dim": 1,
-        }
+        },
     )
 
     true_value = torch.cat(
-        [2 * torch.ones(num_batches, num_series, num_hist_time), 3 * torch.ones(num_batches, num_series, num_pred_time)], dim=2
+        [
+            2 * torch.ones(num_batches, num_series, num_hist_time),
+            3 * torch.ones(num_batches, num_series, num_pred_time),
+        ],
+        dim=2,
     )
-    mask = (true_value == 2)
+    mask = true_value == 2
     encoded = torch.cat(
-        [4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim), 5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim)], dim=2
+        [
+            4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim),
+            5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim),
+        ],
+        dim=2,
     )
 
     net.copula = __ParameterSavingShell(net.copula)
@@ -140,7 +156,7 @@ def test_masking_loss():
     assert pred_encoded.shape == (num_batches, num_series * num_pred_time, embed_dim)
     assert pred_true_u.shape == (num_batches, num_series * num_pred_time)
 
-    assert loss.shape == (num_batches, )
+    assert loss.shape == (num_batches,)
 
 
 def test_decoder_sample():
@@ -162,15 +178,23 @@ def test_decoder_sample():
             "mlp_dim": 1,
             "flow_layers": 1,
             "flow_hid_dim": 1,
-        }
+        },
     )
 
     true_value = torch.cat(
-        [2 * torch.ones(num_batches, num_series, num_hist_time), 3 * torch.ones(num_batches, num_series, num_pred_time)], dim=2
+        [
+            2 * torch.ones(num_batches, num_series, num_hist_time),
+            3 * torch.ones(num_batches, num_series, num_pred_time),
+        ],
+        dim=2,
     )
-    mask = (true_value == 2)
+    mask = true_value == 2
     encoded = torch.cat(
-        [4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim), 5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim)], dim=2
+        [
+            4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim),
+            5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim),
+        ],
+        dim=2,
     )
 
     samples = net.sample(
@@ -207,15 +231,23 @@ def test_decoder_sample_scaling():
             "mlp_dim": 1,
             "flow_layers": 1,
             "flow_hid_dim": 1,
-        }
+        },
     )
 
     true_value = torch.cat(
-        [2 * torch.ones(num_batches, num_series, num_hist_time), 3 * torch.ones(num_batches, num_series, num_pred_time)], dim=2
+        [
+            2 * torch.ones(num_batches, num_series, num_hist_time),
+            3 * torch.ones(num_batches, num_series, num_pred_time),
+        ],
+        dim=2,
     )
-    mask = (true_value == 2)
+    mask = true_value == 2
     encoded = torch.cat(
-        [4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim), 5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim)], dim=2
+        [
+            4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim),
+            5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim),
+        ],
+        dim=2,
     )
 
     net.marginal = __ParameterSavingShell(net.marginal)
@@ -259,9 +291,12 @@ def test_attentional_copula_loss():
     pred_encoded = torch.randn(num_batches, num_var_pred, embed_dim)
     pred_true_u = torch.randn(num_batches, num_var_pred)
 
-    loss = net.loss(hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded, pred_true_u=pred_true_u)
+    loss = net.loss(
+        hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded, pred_true_u=pred_true_u
+    )
 
-    assert loss.shape == (num_batches, )
+    assert loss.shape == (num_batches,)
+
 
 def test_attentional_copula_sample():
     """
@@ -290,7 +325,9 @@ def test_attentional_copula_sample():
     hist_true_u = torch.randn(num_batches, num_var_hist)
     pred_encoded = torch.randn(num_batches, num_var_pred, embed_dim)
 
-    samples = net.sample(num_samples=num_samples, hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded)
+    samples = net.sample(
+        num_samples=num_samples, hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded
+    )
 
     assert samples.shape == (num_batches, num_var_pred, num_samples)
     assert (samples >= 0).all()
@@ -313,9 +350,11 @@ def test_trivial_copula_loss():
     pred_encoded = torch.randn(num_batches, num_var_pred, embed_dim)
     pred_true_u = torch.randn(num_batches, num_var_pred)
 
-    loss = net.loss(hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded, pred_true_u=pred_true_u)
+    loss = net.loss(
+        hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded, pred_true_u=pred_true_u
+    )
 
-    assert loss.shape == (num_batches, )
+    assert loss.shape == (num_batches,)
     assert (loss == 0).all()
 
 
@@ -335,7 +374,9 @@ def test_trivial_copula_sample():
     hist_true_u = torch.randn(num_batches, num_var_hist)
     pred_encoded = torch.randn(num_batches, num_var_pred, embed_dim)
 
-    samples = net.sample(num_samples=num_samples, hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded)
+    samples = net.sample(
+        num_samples=num_samples, hist_encoded=hist_encoded, hist_true_u=hist_true_u, pred_encoded=pred_encoded
+    )
 
     assert samples.shape == (num_batches, num_var_pred, num_samples)
     assert (samples >= 0).all()
@@ -356,17 +397,25 @@ def test_gaussian_loss():
 
     net = GaussianDecoder(
         input_dim=embed_dim,
-        matrix_rank = 5,
+        matrix_rank=5,
         mlp_layers=3,
         mlp_dim=11,
     )
 
     true_value = torch.cat(
-        [2 * torch.ones(num_batches, num_series, num_hist_time), 3 * torch.ones(num_batches, num_series, num_pred_time)], dim=2
+        [
+            2 * torch.ones(num_batches, num_series, num_hist_time),
+            3 * torch.ones(num_batches, num_series, num_pred_time),
+        ],
+        dim=2,
     )
-    mask = (true_value == 2)
+    mask = true_value == 2
     encoded = torch.cat(
-        [4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim), 5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim)], dim=2
+        [
+            4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim),
+            5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim),
+        ],
+        dim=2,
     )
 
     loss = net.loss(
@@ -375,7 +424,8 @@ def test_gaussian_loss():
         true_value=true_value,
     )
 
-    assert loss.shape == (num_batches, )
+    assert loss.shape == (num_batches,)
+
 
 def test_gaussian_sample():
     """
@@ -391,17 +441,25 @@ def test_gaussian_sample():
 
     net = GaussianDecoder(
         input_dim=embed_dim,
-        matrix_rank = 5,
+        matrix_rank=5,
         mlp_layers=3,
         mlp_dim=11,
     )
 
     true_value = torch.cat(
-        [2 * torch.ones(num_batches, num_series, num_hist_time), 3 * torch.ones(num_batches, num_series, num_pred_time)], dim=2
+        [
+            2 * torch.ones(num_batches, num_series, num_hist_time),
+            3 * torch.ones(num_batches, num_series, num_pred_time),
+        ],
+        dim=2,
     )
-    mask = (true_value == 2)
+    mask = true_value == 2
     encoded = torch.cat(
-        [4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim), 5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim)], dim=2
+        [
+            4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim),
+            5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim),
+        ],
+        dim=2,
     )
 
     samples = net.sample(

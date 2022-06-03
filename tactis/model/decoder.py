@@ -41,7 +41,9 @@ def _split_series_time_dims(x: torch.Tensor, target_shape: torch.Size) -> torch.
     return x.view(target_shape)
 
 
-def _easy_mlp(input_dim: int, hidden_dim: int, output_dim: int, num_layers: int, activation: Type[nn.Module]) -> nn.Sequential:
+def _easy_mlp(
+    input_dim: int, hidden_dim: int, output_dim: int, num_layers: int, activation: Type[nn.Module]
+) -> nn.Sequential:
     """
     Generate a MLP with the given parameters.
     """
@@ -95,7 +97,7 @@ class CopulaDecoder(nn.Module):
 
         if trivial_copula is not None:
             self.copula = TrivialCopula(**trivial_copula)
-        
+
         if dsf_marginal is not None:
             self.marginal = DSFMarginal(context_dim=input_dim, **dsf_marginal)
 
@@ -201,7 +203,9 @@ class CopulaDecoder(nn.Module):
                 pred_samples,
             )
 
-        samples = torch.zeros(target_shape[0], target_shape[1] * target_shape[2], target_shape[3], device=encoded.device)
+        samples = torch.zeros(
+            target_shape[0], target_shape[1] * target_shape[2], target_shape[3], device=encoded.device
+        )
         samples[:, mask, :] = hist_true_x[:, :, None]
         samples[:, ~mask, :] = pred_samples
 
@@ -263,7 +267,6 @@ class AttentionalCopula(nn.Module):
         self.resolution = resolution
         self.dropout = dropout
         self.fixed_permutation = fixed_permutation
-    
 
         # Parameters for the attention layers in the copula
         # For each layer and each head, we have two MLP to create the keys and values
@@ -274,44 +277,70 @@ class AttentionalCopula(nn.Module):
 
         # one per layer and per head
         # The key and value creators take the input embedding together with the sampled [0,1] value as an input
-        self.key_creators = nn.ModuleList([
-            nn.ModuleList([
-                _easy_mlp(input_dim=self.input_dim + 1, hidden_dim=self.mlp_dim, output_dim=self.attention_dim, num_layers=self.mlp_layers, activation=nn.ReLU)
-                for _ in range(self.attention_heads)
-            ])
-            for _ in range(self.attention_layers)
-        ])
-        self.value_creators = nn.ModuleList([
-            nn.ModuleList([
-                _easy_mlp(input_dim=self.input_dim + 1, hidden_dim=self.mlp_dim, output_dim=self.attention_dim, num_layers=self.mlp_layers, activation=nn.ReLU)
-                for _ in range(self.attention_heads)
-            ])
-            for _ in range(self.attention_layers)
-        ])
+        self.key_creators = nn.ModuleList(
+            [
+                nn.ModuleList(
+                    [
+                        _easy_mlp(
+                            input_dim=self.input_dim + 1,
+                            hidden_dim=self.mlp_dim,
+                            output_dim=self.attention_dim,
+                            num_layers=self.mlp_layers,
+                            activation=nn.ReLU,
+                        )
+                        for _ in range(self.attention_heads)
+                    ]
+                )
+                for _ in range(self.attention_layers)
+            ]
+        )
+        self.value_creators = nn.ModuleList(
+            [
+                nn.ModuleList(
+                    [
+                        _easy_mlp(
+                            input_dim=self.input_dim + 1,
+                            hidden_dim=self.mlp_dim,
+                            output_dim=self.attention_dim,
+                            num_layers=self.mlp_layers,
+                            activation=nn.ReLU,
+                        )
+                        for _ in range(self.attention_heads)
+                    ]
+                )
+                for _ in range(self.attention_layers)
+            ]
+        )
 
         # one per layer
-        self.attention_dropouts = nn.ModuleList([
-            nn.Dropout(self.dropout) for _ in range(self.attention_layers)
-        ])
-        self.attention_layer_norms = nn.ModuleList([
-            nn.LayerNorm(self.attention_heads * self.attention_dim) for _ in range(self.attention_layers)
-        ])
-        self.feed_forwards = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(self.attention_heads * self.attention_dim, self.attention_heads * self.attention_dim),
-                nn.ReLU(),
-                nn.Dropout(self.dropout),
-                nn.Linear(self.attention_heads * self.attention_dim, self.attention_heads * self.attention_dim),
-                nn.Dropout(dropout),
-            )
-            for _ in range(self.attention_layers)
-        ])
-        self.feed_forward_layer_norms = nn.ModuleList([
-            nn.LayerNorm(self.attention_heads * self.attention_dim) for _ in range(self.attention_layers)
-        ])
+        self.attention_dropouts = nn.ModuleList([nn.Dropout(self.dropout) for _ in range(self.attention_layers)])
+        self.attention_layer_norms = nn.ModuleList(
+            [nn.LayerNorm(self.attention_heads * self.attention_dim) for _ in range(self.attention_layers)]
+        )
+        self.feed_forwards = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(self.attention_heads * self.attention_dim, self.attention_heads * self.attention_dim),
+                    nn.ReLU(),
+                    nn.Dropout(self.dropout),
+                    nn.Linear(self.attention_heads * self.attention_dim, self.attention_heads * self.attention_dim),
+                    nn.Dropout(dropout),
+                )
+                for _ in range(self.attention_layers)
+            ]
+        )
+        self.feed_forward_layer_norms = nn.ModuleList(
+            [nn.LayerNorm(self.attention_heads * self.attention_dim) for _ in range(self.attention_layers)]
+        )
 
         # Parameter extractor for the categorical distribution
-        self.dist_extractors = _easy_mlp(input_dim=self.attention_heads * self.attention_dim, hidden_dim=self.mlp_dim, output_dim=self.resolution, num_layers=self.mlp_layers, activation=nn.ReLU)
+        self.dist_extractors = _easy_mlp(
+            input_dim=self.attention_heads * self.attention_dim,
+            hidden_dim=self.mlp_dim,
+            output_dim=self.resolution,
+            num_layers=self.mlp_layers,
+            activation=nn.ReLU,
+        )
 
     def loss(
         self,
@@ -342,7 +371,7 @@ class AttentionalCopula(nn.Module):
         --------
         loss: torch.Tensor [batch]
             The loss function, equal to the negative log likelihood of the copula.
-        """       
+        """
         num_batches = pred_encoded.shape[0]
         num_variables = pred_encoded.shape[1]
         num_history = hist_encoded.shape[1]
@@ -365,15 +394,11 @@ class AttentionalCopula(nn.Module):
         key_value_input = torch.cat([key_value_input_hist, key_value_input_pred], axis=1)
 
         keys = [
-            torch.cat([
-                mlp(key_value_input)[:, None, :, :] for mlp in self.key_creators[layer]
-                ], axis=1)
+            torch.cat([mlp(key_value_input)[:, None, :, :] for mlp in self.key_creators[layer]], axis=1)
             for layer in range(self.attention_layers)
         ]
         values = [
-            torch.cat([
-                mlp(key_value_input)[:, None, :, :] for mlp in self.value_creators[layer]
-                ], axis=1)
+            torch.cat([mlp(key_value_input)[:, None, :, :] for mlp in self.value_creators[layer]], axis=1)
             for layer in range(self.attention_layers)
         ]
 
@@ -455,7 +480,6 @@ class AttentionalCopula(nn.Module):
         logprob = torch.gather(logprob, dim=2, index=target[:, :, None])[:, :, 0]
 
         return -logprob.sum(axis=1)  # Only keep the batch dimension
-        
 
     def sample(
         self, num_samples: int, hist_encoded: torch.Tensor, hist_true_u: torch.Tensor, pred_encoded: torch.Tensor
@@ -503,26 +527,26 @@ class AttentionalCopula(nn.Module):
         # The MLP which generates the keys and values used the encoded embedding + transformed true values.
         key_value_input_hist = torch.cat([hist_encoded, hist_true_u[:, :, None]], axis=2)
         keys_hist = [
-            torch.cat([
-                mlp(key_value_input_hist)[:, None, :, :] for mlp in self.key_creators[layer]
-                ], axis=1)
+            torch.cat([mlp(key_value_input_hist)[:, None, :, :] for mlp in self.key_creators[layer]], axis=1)
             for layer in range(self.attention_layers)
         ]
         values_hist = [
-            torch.cat([
-                mlp(key_value_input_hist)[:, None, :, :] for mlp in self.value_creators[layer]
-                ], axis=1)
+            torch.cat([mlp(key_value_input_hist)[:, None, :, :] for mlp in self.value_creators[layer]], axis=1)
             for layer in range(self.attention_layers)
         ]
 
         # We will store the keys and values from the sampled variables as we do the sampling
         samples = torch.zeros(num_batches, num_variables, num_samples).to(device)
         keys_samples = [
-            torch.zeros(num_batches, num_samples, self.attention_heads, num_variables, self.attention_dim, device=device)
+            torch.zeros(
+                num_batches, num_samples, self.attention_heads, num_variables, self.attention_dim, device=device
+            )
             for _ in range(self.attention_layers)
         ]
         values_samples = [
-            torch.zeros(num_batches, num_samples, self.attention_heads, num_variables, self.attention_dim, device=device)
+            torch.zeros(
+                num_batches, num_samples, self.attention_heads, num_variables, self.attention_dim, device=device
+            )
             for _ in range(self.attention_layers)
         ]
 
@@ -541,7 +565,9 @@ class AttentionalCopula(nn.Module):
 
                 for layer in range(self.attention_layers):
                     # Split the hidden layer into its various heads
-                    att_value_heads = att_value.reshape(att_value.shape[0], att_value.shape[1], self.attention_heads, self.attention_dim)
+                    att_value_heads = att_value.reshape(
+                        att_value.shape[0], att_value.shape[1], self.attention_heads, self.attention_dim
+                    )
 
                     # Calculate attention weights
                     # Einstein sum indices:
@@ -586,9 +612,7 @@ class AttentionalCopula(nn.Module):
                     att_value = self.feed_forward_layer_norms[layer](att_value)
 
                 # Get the output distribution parameters
-                logits = self.dist_extractors(att_value).reshape(
-                    num_batches * num_samples, self.resolution
-                )
+                logits = self.dist_extractors(att_value).reshape(num_batches * num_samples, self.resolution)
                 # Select a single variable in {0, 1, 2, ..., self.resolution-1} according to the probabilities from the softmax
                 current_samples = torch.multinomial(input=torch.softmax(logits, dim=1), num_samples=1)
                 # Each point in the same bucket is equiprobable, and we used a floor function in the training
@@ -733,9 +757,27 @@ class GaussianDecoder(nn.Module):
         # Where V is a number of variables * matrix rank rectangular matrix, and d is diagonal.
         # This gives the same covariance as having matrix rank latent Normal(0,1) variables, and generating the output as:
         # output_i = sum_j V_ij latent_j + N(0, d_i)
-        self.param_V_extractor = _easy_mlp(input_dim = self.input_dim, hidden_dim=self.mlp_dim, output_dim=self.matrix_rank, num_layers=self.mlp_layers, activation=nn.ReLU)
-        self.param_d_extractor = _easy_mlp(input_dim = self.input_dim, hidden_dim=self.mlp_dim, output_dim=1, num_layers=self.mlp_layers, activation=nn.ReLU)
-        self.param_mean_extractor = _easy_mlp(input_dim = self.input_dim, hidden_dim=self.mlp_dim, output_dim=1, num_layers=self.mlp_layers, activation=nn.ReLU)
+        self.param_V_extractor = _easy_mlp(
+            input_dim=self.input_dim,
+            hidden_dim=self.mlp_dim,
+            output_dim=self.matrix_rank,
+            num_layers=self.mlp_layers,
+            activation=nn.ReLU,
+        )
+        self.param_d_extractor = _easy_mlp(
+            input_dim=self.input_dim,
+            hidden_dim=self.mlp_dim,
+            output_dim=1,
+            num_layers=self.mlp_layers,
+            activation=nn.ReLU,
+        )
+        self.param_mean_extractor = _easy_mlp(
+            input_dim=self.input_dim,
+            hidden_dim=self.mlp_dim,
+            output_dim=1,
+            num_layers=self.mlp_layers,
+            activation=nn.ReLU,
+        )
 
     def extract_params(self, pred_encoded: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
