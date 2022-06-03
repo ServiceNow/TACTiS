@@ -17,8 +17,10 @@ limitations under the License.
 import math
 import torch
 from torch import nn
+from torch.distributions import LowRankMultivariateNormal
+from torch.nn import functional
 
-from typing import Optional, Dict, Any, Type
+from typing import Optional, Dict, Any, Tuple, Type
 
 from .marginal import DSFMarginal
 
@@ -245,7 +247,7 @@ class AttentionalCopula(nn.Module):
         resolution: int, default to 10
             How many bins to pick from when sampling variables.
             Higher values are more precise, but slower to train.
-        dropout: bool, default to 0.1
+        dropout: float, default to 0.1
             Dropout parameter for the attention.
         fixed_permutation: bool, default False
             If set to true, then the copula always use the same permutation, instead of using random ones.
@@ -606,7 +608,7 @@ class AttentionalCopula(nn.Module):
             # Collate the results, reversing the effect of the permutation
             # By using two lists of equal lengths, the resulting slice will be 2d, not 3d.
             samples[:, p, range(num_samples)] = current_samples
-        
+
         return samples
 
 
@@ -690,8 +692,82 @@ class GaussianDecoder(nn.Module):
     A decoder which forecast using a low-rank multivariate Gaussian distribution.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        input_dim: int,
+        matrix_rank: int,
+        mlp_layers: int,
+        mlp_dim: int,
+        min_d: float = 0.01,
+        max_v: float = 50.0,
+    ):
+        """
+        Parameters:
+        -----------
+        input_dim: int
+            Dimension of the encoded representation.
+        matrix_rank: int
+            Rank of the covariance matrix, prior to adding its diagonal component.
+        mlp_layers: int
+            The number of hidden layers in the MLP that produces the components of the covariance matrix.
+        mlp_dim: int
+            The size of the hidden layers in the MLP that produces the components of the covariance matrix.
+        min_d: float, default to 0.01
+            Minimum value of the diagonal component of the covariance matrix.
+            Too low values can lead to exceptions due to numerical errors.
+        max_v: float, default to 50.0
+            Maximum weight of the contribution from the latent variables to the observed variables.
+            Too high values can lead to exceptions due to numerical errors.
+        """
         super().__init__()
+
+        self.input_dim = input_dim
+        self.matrix_rank = matrix_rank
+        self.mlp_layers = mlp_layers
+        self.mlp_dim = mlp_dim
+        self.min_d = min_d
+        self.max_v = max_v
+
+        # The covariance matrix low-rank approximation is as such:
+        # Cov = V * V^t + d
+        # Where V is a number of variables * matrix rank rectangular matrix, and d is diagonal.
+        # This gives the same covariance as having matrix rank latent Normal(0,1) variables, and generating the output as:
+        # output_i = sum_j V_ij latent_j + N(0, d_i)
+        self.param_V_extractor = _easy_mlp(input_dim = self.input_dim, hidden_dim=self.mlp_dim, output_dim=self.matrix_rank, num_layers=self.mlp_layers, activation=nn.ReLU)
+        self.param_d_extractor = _easy_mlp(input_dim = self.input_dim, hidden_dim=self.mlp_dim, output_dim=1, num_layers=self.mlp_layers, activation=nn.ReLU)
+        self.param_mean_extractor = _easy_mlp(input_dim = self.input_dim, hidden_dim=self.mlp_dim, output_dim=1, num_layers=self.mlp_layers, activation=nn.ReLU)
+
+    def extract_params(self, pred_encoded: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Compute the parameters of the low-rank Gaussian distribution.
+
+        Parameters:
+        -----------
+        pred_encoded: Tensor [batch, series * time steps, embedding dimension]
+            A tensor containing an embedding for each variable and time step.
+
+        Returns:
+        --------
+        param_mean: torch.Tensor [batch, series * time steps]
+            The mean of the Gaussian distribution
+        param_d: torch.Tensor [batch, series * time steps]
+            The diagonal of the Gaussian distribution covariance matrix
+        param_V: torch.Tensor [batch, series * time steps, matrix rank]
+            The contribution to each variable from each latent variable
+        """
+        # The last dimension of the mean and d parameters is a dummy one
+        param_mean = self.param_mean_extractor(pred_encoded)[:, :, 0]
+        # Parametrized covariance matrix d + V*V^t
+        # This is the same parametrization as what Salinas et al. (2019) used for the covariance matrix.
+        # An upper bound of the condition number of the matrix that will be used in the logdet or Cholesky is:
+        # 1 + hid_dim * max_v^2 / min_d
+        # We add these limits since a condition number near or above 2^23 will lead to grave numerical instability in the Cholesky decomposition.
+        param_d = functional.softplus(self.param_d_extractor(pred_encoded))[:, :, 0]
+        param_d = param_d + self.min_d
+        param_V = self.param_V_extractor(pred_encoded)
+        param_V = torch.tanh(param_V / self.max_v) * self.max_v
+
+        return param_mean, param_d, param_V
 
     def loss(self, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor) -> torch.Tensor:
         """
@@ -714,7 +790,21 @@ class GaussianDecoder(nn.Module):
         embedding: torch.Tensor [batch]
             The loss function, equal to the negative log likelihood of the distribution.
         """
-        pass
+        encoded = _merge_series_time_dims(encoded)
+        mask = _merge_series_time_dims(mask)
+        true_value = _merge_series_time_dims(true_value)
+
+        # Assume that the mask is constant inside the batch
+        mask = mask[0, :]
+
+        # Ignore the encoding from the historical variables, since there are no interaction between the variables in this decoder.
+        pred_encoded = encoded[:, ~mask, :]
+        pred_true_x = true_value[:, ~mask]
+
+        param_mean, param_d, param_V = self.extract_params(pred_encoded)
+        log_prob = LowRankMultivariateNormal(loc=param_mean, cov_factor=param_V, cov_diag=param_d).log_prob(pred_true_x)
+
+        return -log_prob
 
     def sample(
         self, num_samples: int, encoded: torch.Tensor, mask: torch.BoolTensor, true_value: torch.Tensor
@@ -741,4 +831,31 @@ class GaussianDecoder(nn.Module):
         samples: torch.Tensor [batch, series, time steps, samples]
             Samples drawn from the forecasted distribution.
         """
-        pass
+        num_batches = encoded.shape[0]
+        num_series = encoded.shape[1]
+        num_timesteps = encoded.shape[2]
+        device = encoded.device
+
+        encoded = _merge_series_time_dims(encoded)
+        mask = _merge_series_time_dims(mask)
+        true_value = _merge_series_time_dims(true_value)
+
+        # Assume that the mask is constant inside the batch
+        mask = mask[0, :]
+
+        # Ignore the encoding from the historical variables, since there are no interaction between the variables in this decoder.
+        pred_encoded = encoded[:, ~mask, :]
+        # Except what is needed to copy to the output
+        hist_true_x = true_value[:, mask]
+
+        param_mean, param_d, param_V = self.extract_params(pred_encoded)
+
+        dist = LowRankMultivariateNormal(loc=param_mean, cov_factor=param_V, cov_diag=param_d)
+        # rsamples have the samples as the first dimension, so send it to the last dimension
+        pred_samples = dist.rsample((num_samples,)).permute((1, 2, 0))
+
+        samples = torch.zeros(num_batches, num_series * num_timesteps, num_samples, device=device)
+        samples[:, mask, :] = hist_true_x[:, :, None]
+        samples[:, ~mask, :] = pred_samples
+
+        return _split_series_time_dims(samples, torch.Size((num_batches, num_series, num_timesteps, num_samples)))
