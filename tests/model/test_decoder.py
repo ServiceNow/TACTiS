@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from tactis.model.decoder import CopulaDecoder, AttentionalCopula, TrivialCopula, _split_series_time_dims, _merge_series_time_dims
+from tactis.model.decoder import CopulaDecoder, AttentionalCopula, GaussianDecoder, TrivialCopula, _split_series_time_dims, _merge_series_time_dims
 
 import torch
 from torch import nn
@@ -121,7 +121,7 @@ def test_masking_loss():
 
     net.copula = __ParameterSavingShell(net.copula)
 
-    _ = net.loss(
+    loss = net.loss(
         encoded=encoded,
         mask=mask,
         true_value=true_value,
@@ -139,6 +139,8 @@ def test_masking_loss():
     assert (pred_encoded == 5).all()
     assert pred_encoded.shape == (num_batches, num_series * num_pred_time, embed_dim)
     assert pred_true_u.shape == (num_batches, num_series * num_pred_time)
+
+    assert loss.shape == (num_batches, )
 
 
 def test_decoder_sample():
@@ -338,3 +340,76 @@ def test_trivial_copula_sample():
     assert samples.shape == (num_batches, num_var_pred, num_samples)
     assert (samples >= 0).all()
     assert (samples <= 1).all()
+
+
+def test_gaussian_loss():
+    """
+    Test that the gaussian decoder loss function method runs without error.
+    We cannot direcly test its accuracy due to the model complexity.
+    """
+    num_batches = 3
+    num_series = 4
+    num_hist_time = 2
+    num_pred_time = 3
+    embed_dim = 6
+    num_samples = 7
+
+    net = GaussianDecoder(
+        input_dim=embed_dim,
+        matrix_rank = 5,
+        mlp_layers=3,
+        mlp_dim=11,
+    )
+
+    true_value = torch.cat(
+        [2 * torch.ones(num_batches, num_series, num_hist_time), 3 * torch.ones(num_batches, num_series, num_pred_time)], dim=2
+    )
+    mask = (true_value == 2)
+    encoded = torch.cat(
+        [4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim), 5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim)], dim=2
+    )
+
+    loss = net.loss(
+        encoded=encoded,
+        mask=mask,
+        true_value=true_value,
+    )
+
+    assert loss.shape == (num_batches, )
+
+def test_gaussian_sample():
+    """
+    Test that the gaussian decoder sampling method runs without error.
+    We cannot direcly test its accuracy due to the model complexity.
+    """
+    num_batches = 3
+    num_series = 4
+    num_hist_time = 2
+    num_pred_time = 3
+    embed_dim = 6
+    num_samples = 7
+
+    net = GaussianDecoder(
+        input_dim=embed_dim,
+        matrix_rank = 5,
+        mlp_layers=3,
+        mlp_dim=11,
+    )
+
+    true_value = torch.cat(
+        [2 * torch.ones(num_batches, num_series, num_hist_time), 3 * torch.ones(num_batches, num_series, num_pred_time)], dim=2
+    )
+    mask = (true_value == 2)
+    encoded = torch.cat(
+        [4 * torch.ones(num_batches, num_series, num_hist_time, embed_dim), 5 * torch.ones(num_batches, num_series, num_pred_time, embed_dim)], dim=2
+    )
+
+    samples = net.sample(
+        num_samples=num_samples,
+        encoded=encoded,
+        mask=mask,
+        true_value=true_value,
+    )
+
+    assert samples.shape == (num_batches, num_series, num_hist_time + num_pred_time, num_samples)
+    assert (samples[:, :, :num_hist_time, :] == 2).all()
