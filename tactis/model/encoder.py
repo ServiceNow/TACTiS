@@ -32,25 +32,91 @@ class Encoder(nn.Module):
     The decoder returns an output containing an embedding for each series and time step.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        attention_layers: int,
+        attention_heads: int,
+        attention_dim: int,
+        attention_feedforward_dim: int,
+        dropout: float = 0.1,
+    ):
+        """
+        Parameters:
+        -----------
+        attention_layers: int
+            How many successive attention layers copula will use.
+        attention_heads: int
+            How many independant heads the attention layer will have.
+        attention_dim: int
+            The size of the attention layer input and output, for each head.
+        attention_feedforward_dim: int
+            The dimension of the hidden layer in the feed forward step.
+        dropout: float, default to 0.1
+            Dropout parameter for the attention.
+        """
         super().__init__()
 
-    def forward(self, data: torch.Tensor) -> torch.Tensor:
+        self.attention_layers = attention_layers
+        self.attention_heads = attention_heads
+        self.attention_dim = attention_dim
+        self.attention_feedforward_dim = attention_feedforward_dim
+        self.dropout = dropout
+
+        self.transformer_encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                self.attention_dim * self.attention_heads,
+                self.attention_heads,
+                self.attention_feedforward_dim,
+                self.dropout,
+            ),
+            self.attention_layers,
+        )
+
+    @property
+    def embedding_dim(self):
+        """
+        Returns:
+        --------
+        dim: int
+            The expected dimensionality of the input embedding, and the dimensionality of the output embedding
+        """
+        return self.attention_dim * self.attention_heads
+
+    def forward(self, encoded: torch.Tensor) -> torch.Tensor:
         """
         Compute the embedding for each series and time step.
 
         Parameters:
         -----------
-        data: Tensor [batch, series, time steps, input embedding dimension]
+        encoded: Tensor [batch, series, time steps, input embedding dimension]
             A tensor containing an embedding for each series and time step.
             This embedding is expected to only contain local information, with no interaction between series or time steps.
 
         Returns:
         --------
-        encoded: torch.Tensor [batch, series, time steps, output embedding dimension]
-            The encoded embedding for each series and time step.
+        output: torch.Tensor [batch, series, time steps, output embedding dimension]
+            The transformed embedding for each series and time step.
         """
-        pass
+        num_batches = encoded.shape[0]
+        num_series = encoded.shape[1]
+        num_timesteps = encoded.shape[2]
+
+        # Merge the series and time steps, since the PyTorch attention implementation only accept three-dimensional input,
+        # and the attention is applied between all tokens, no matter their series or time step.
+        encoded = encoded.view(num_batches, num_series * num_timesteps, self.embedding_dim)
+
+        # The PyTorch implementation wants the following order: [tokens, batch, embedding]
+        encoded = encoded.transpose(0, 1)
+
+        output = self.transformer_encoder(
+            encoded, mask=torch.zeros(encoded.shape[0], encoded.shape[0], device=encoded.device)
+        )
+
+        # Reset to the original shape
+        output = output.transpose(0, 1)
+        output = output.view(num_batches, num_series, num_timesteps, self.embedding_dim)
+
+        return output
 
 
 class TemporalEncoder(nn.Module):
