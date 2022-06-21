@@ -139,8 +139,8 @@ class TACTiS(nn.Module):
         for i in range(self.input_encoder_layers):
             if i == 0:
                 elayers.append(
-                    nn.Linear(self.series_embedding_dim + 1, self.encoder.embedding_dim)
-                )  # +1 is for the mask
+                    nn.Linear(self.series_embedding_dim + 2, self.encoder.embedding_dim)
+                )  # +1 for the value, +1 for the mask, and the per series embedding
             else:
                 elayers.append(nn.Linear(self.encoder.embedding_dim, self.encoder.embedding_dim))
             elayers.append(nn.ReLU())
@@ -197,7 +197,7 @@ class TACTiS(nn.Module):
 
         return hist_time, hist_value, pred_time, pred_value, series_emb
 
-    def forward(
+    def loss(
         self, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor, pred_value: torch.Tensor
     ) -> torch.Tensor:
         """
@@ -229,7 +229,7 @@ class TACTiS(nn.Module):
 
         # Gets the embedding for each series [batch, series, embedding size]
         # Expand over batches to be compatible with the bagging procedure, which select different series for each batch
-        series_emb = self.series_encoder(torch.arange(hist_value.shape[1], device=device))
+        series_emb = self.series_encoder(torch.arange(num_series, device=device))
         series_emb = series_emb[None, :, :].expand(num_batches, -1, -1)
 
         # Make sure that both time tensors are in the correct format
@@ -246,21 +246,22 @@ class TACTiS(nn.Module):
             hist_time, hist_value, pred_time, pred_value, series_emb = self._apply_bagging(
                 self.bagging_size, hist_time, hist_value, pred_time, pred_value, series_emb
             )
+            num_series = self.bagging_size
 
         hist_encoded = torch.cat(
             [
                 hist_value[:, :, :, None],
                 series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
-                torch.ones(num_batches, num_series, num_hist_timesteps, device=device),
+                torch.ones(num_batches, num_series, num_hist_timesteps, 1, device=device),
             ],
             dim=3,
         )
         # For the prediction embedding, replace the values by zeros, since they won't be available during sampling
         pred_encoded = torch.cat(
             [
-                torch.zeros(num_batches, num_series, num_pred_timesteps, device=device),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
                 series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
-                torch.zeros(num_batches, num_series, num_pred_timesteps, device=device),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
             ],
             dim=3,
         )
@@ -275,6 +276,26 @@ class TACTiS(nn.Module):
         if self.time_encoding:
             timesteps = torch.cat([hist_time, pred_time], dim=2)
             encoded = self.time_encoding(encoded, timesteps.to(int))
+
+        encoded = self.encoder(encoded)
+
+        mask = torch.cat(
+            [
+                torch.ones(num_batches, num_series, num_hist_timesteps, dtype=bool),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, dtype=bool),
+            ],
+            dim=2,
+        )
+        true_value = torch.cat(
+            [
+                hist_value,
+                pred_value,
+            ],
+            dim=2,
+        )
+
+        loss = self.decoder.loss(encoded, mask, true_value)
+        return loss
 
     def sample(
         self, num_samples: int, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor

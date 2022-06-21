@@ -195,3 +195,57 @@ def test_bagging_common_series():
             assert (out_pred_time[batch, bag, :] == value).all()
             assert (out_pred_value[batch, bag, :] == value).all()
             assert (out_series_emb[batch, bag, :] == value).all()
+
+
+def test_loss_function():
+    """
+    Test that the loss function runs without error.
+    Cannot do a more precise test due to the complexity of the model.
+    """
+    num_batches = 4
+    num_series = 5
+    num_timesteps_hist = 2
+    num_timesteps_pred = 3
+
+    net = TACTiS(
+        num_series=num_series,
+        series_embedding_dim=7,
+        input_encoder_layers=3,
+        bagging_size=4,
+        input_encoding_normalization=True,
+        positional_encoding={
+            "dropout": 0.2,
+        },
+        temporal_encoder={
+            "attention_layers": 3,
+            "attention_heads": 2,
+            "attention_dim": 8,
+            "attention_feedforward_dim": 10,
+            "dropout": 0.2,
+        },
+        copula_decoder={
+            "attentional_copula": {
+                "attention_heads": 2,
+                "attention_layers": 2,
+                "attention_dim": 12,
+                "mlp_layers": 3,
+                "mlp_dim": 8,
+                "resolution": 20,
+            },
+            "dsf_marginal": {
+                "mlp_layers": 3,
+                "mlp_dim": 6,
+                "flow_layers": 2,
+                "flow_hid_dim": 10,
+            },
+        },
+    )
+
+    hist_time = torch.rand(num_batches, num_series, num_timesteps_hist)
+    hist_value = torch.rand(num_batches, num_series, num_timesteps_hist)
+    pred_time = torch.rand(num_batches, num_series, num_timesteps_pred)
+    pred_value = torch.rand(num_batches, num_series, num_timesteps_pred)
+
+    loss = net.loss(hist_time, hist_value, pred_time, pred_value)
+
+    assert loss.shape == torch.Size([num_batches])
