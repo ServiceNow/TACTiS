@@ -14,13 +14,14 @@ limitations under the License.
 """
 
 
+from typing import Any, Dict, Optional, Tuple
+
+import numpy
 import torch
 from torch import nn
-from typing import Optional, Dict, Any, Tuple
-import numpy
 
-from .encoder import Encoder, TemporalEncoder
 from .decoder import CopulaDecoder, GaussianDecoder
+from .encoder import Encoder, TemporalEncoder
 
 
 class PositionalEncoding(nn.Module):
@@ -277,7 +278,7 @@ class TACTiS(nn.Module):
             timesteps = torch.cat([hist_time, pred_time], dim=2)
             encoded = self.time_encoding(encoded, timesteps.to(int))
 
-        encoded = self.encoder(encoded)
+        encoded = self.encoder.forward(encoded)
 
         mask = torch.cat(
             [
@@ -321,3 +322,71 @@ class TACTiS(nn.Module):
         samples: torch.Tensor [batch, series, time steps, samples]
             Samples from the forecasted distribution.
         """
+        num_batches = hist_value.shape[0]
+        num_series = hist_value.shape[1]
+        num_hist_timesteps = hist_value.shape[2]
+        num_pred_timesteps = pred_time.shape[-1]
+        device = hist_value.device
+
+        # Gets the embedding for each series [batch, series, embedding size]
+        # Expand over batches to be compatible with the bagging procedure, which select different series for each batch
+        series_emb = self.series_encoder(torch.arange(num_series, device=device))
+        series_emb = series_emb[None, :, :].expand(num_batches, -1, -1)
+
+        # Make sure that both time tensors are in the correct format
+        if len(hist_time.shape) == 2:
+            hist_time = hist_time[:, None, :]
+        if len(pred_time.shape) == 2:
+            pred_time = pred_time[:, None, :]
+        if hist_time.shape[1] == 1:
+            hist_time = hist_time.expand(-1, num_series, -1)
+        if pred_time.shape[1] == 1:
+            pred_time = pred_time.expand(-1, num_series, -1)
+
+        hist_encoded = torch.cat(
+            [
+                hist_value[:, :, :, None],
+                series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
+                torch.ones(num_batches, num_series, num_hist_timesteps, 1, device=device),
+            ],
+            dim=3,
+        )
+        pred_encoded = torch.cat(
+            [
+                torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
+                series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
+            ],
+            dim=3,
+        )
+
+        encoded = torch.cat([hist_encoded, pred_encoded], dim=2)
+        encoded = self.input_encoder(encoded)
+        if self.input_encoding_normalization:
+            encoded *= self.encoder.embedding_dim**0.5
+
+        # Add the time encoding here after the input encoding to be compatible with how positional encoding is used.
+        # Adjustments may be required for other ways to encode time.
+        if self.time_encoding:
+            timesteps = torch.cat([hist_time, pred_time], dim=2)
+            encoded = self.time_encoding(encoded, timesteps.to(int))
+
+        encoded = self.encoder.forward(encoded)
+
+        mask = torch.cat(
+            [
+                torch.ones(num_batches, num_series, num_hist_timesteps, dtype=bool),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, dtype=bool),
+            ],
+            dim=2,
+        )
+        true_value = torch.cat(
+            [
+                hist_value,
+                torch.zeros(num_batches, num_series, num_pred_timesteps),
+            ],
+            dim=2,
+        )
+
+        samples = self.decoder.sample(num_samples, encoded, mask, true_value)
+        return samples
