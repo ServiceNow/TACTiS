@@ -66,6 +66,7 @@ class CopulaDecoder(nn.Module):
         max_u: float = 1.0,
         skip_sampling_marginal: bool = False,
         trivial_copula: Optional[Dict[str, Any]] = None,
+        attentional_copula: Optional[Dict[str, Any]] = None,
         dsf_marginal: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -82,13 +83,18 @@ class CopulaDecoder(nn.Module):
         trivial_copula: Dict[str, Any], default to None
             If set to a non-None value, uses a TrivialCopula.
             The options sent to the TrivialCopula is content of this dictionary.
+        attentional_copula: Dict[str, Any], default to None
+            If set to a non-None value, uses a AttentionalCopula.
+            The options sent to the AttentionalCopula is content of this dictionary.
         dsf_marginal: Dict[str, Any], default to None
             If set to a non-None value, uses a DSFMarginal.
             The options sent to the DSFMarginal is content of this dictionary.
         """
         super().__init__()
 
-        assert (trivial_copula is not None) == 1, "Must select exactly one type of copula"
+        assert (trivial_copula is not None) + (
+            attentional_copula is not None
+        ) == 1, "Must select exactly one type of copula"
         assert (dsf_marginal is not None) == 1, "Must select exactly one type of marginal"
 
         self.min_u = min_u
@@ -97,6 +103,8 @@ class CopulaDecoder(nn.Module):
 
         if trivial_copula is not None:
             self.copula = TrivialCopula(**trivial_copula)
+        if attentional_copula is not None:
+            self.copula = AttentionalCopula(input_dim=input_dim, **attentional_copula)
 
         if dsf_marginal is not None:
             self.marginal = DSFMarginal(context_dim=input_dim, **dsf_marginal)
