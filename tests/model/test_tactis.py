@@ -12,7 +12,7 @@ limitations under the License.
 """
 
 import torch
-from tactis.model.tactis import PositionalEncoding
+from tactis.model.tactis import PositionalEncoding, TACTiS
 
 
 def test_positional_encoding_time_broadcast():
@@ -106,3 +106,92 @@ def test_positional_encoding_shift():
     output_shift = net.forward(encoded, timesteps_shift)
 
     assert torch.isclose(output_base, output_shift).all()
+
+
+def test_bagging_shapes():
+    """
+    Test that the bagging procedure output tensors of the correct shapes.
+    """
+    num_batches = 4
+    num_series = 5
+    num_timesteps_hist = 2
+    num_timesteps_pred = 3
+    emb_dim = 6
+    bagging_size = 3
+
+    hist_time = torch.zeros(num_batches, num_series, num_timesteps_hist)
+    hist_value = torch.zeros(num_batches, num_series, num_timesteps_hist)
+    pred_time = torch.zeros(num_batches, num_series, num_timesteps_pred)
+    pred_value = torch.zeros(num_batches, num_series, num_timesteps_pred)
+    series_emb = torch.zeros(num_batches, num_series, emb_dim)
+
+    out_hist_time, out_hist_value, out_pred_time, out_pred_value, out_series_emb = TACTiS._apply_bagging(
+        bagging_size, hist_time, hist_value, pred_time, pred_value, series_emb
+    )
+
+    assert out_hist_time.shape == torch.Size([num_batches, bagging_size, num_timesteps_hist])
+    assert out_hist_value.shape == torch.Size([num_batches, bagging_size, num_timesteps_hist])
+    assert out_pred_time.shape == torch.Size([num_batches, bagging_size, num_timesteps_pred])
+    assert out_pred_value.shape == torch.Size([num_batches, bagging_size, num_timesteps_pred])
+    assert out_series_emb.shape == torch.Size([num_batches, bagging_size, emb_dim])
+
+
+def test_bagging_values():
+    """
+    Test that the bagging procedure output tensors with the same data as the input.
+    """
+    num_batches = 4
+    num_series = 5
+    num_timesteps_hist = 2
+    num_timesteps_pred = 3
+    emb_dim = 6
+    bagging_size = 3
+
+    # Data which only depends on which tensor it is
+    hist_time = 11 * torch.ones(num_batches, num_series, num_timesteps_hist)
+    hist_value = 12 * torch.ones(num_batches, num_series, num_timesteps_hist)
+    pred_time = 13 * torch.ones(num_batches, num_series, num_timesteps_pred)
+    pred_value = 14 * torch.ones(num_batches, num_series, num_timesteps_pred)
+    series_emb = 15 * torch.ones(num_batches, num_series, emb_dim)
+
+    out_hist_time, out_hist_value, out_pred_time, out_pred_value, out_series_emb = TACTiS._apply_bagging(
+        bagging_size, hist_time, hist_value, pred_time, pred_value, series_emb
+    )
+
+    assert (out_hist_time == 11).all()
+    assert (out_hist_value == 12).all()
+    assert (out_pred_time == 13).all()
+    assert (out_pred_value == 14).all()
+    assert (out_series_emb == 15).all()
+
+
+def test_bagging_common_series():
+    """
+    Test that the bagging procedure keep the same series for all input.
+    """
+    num_batches = 4
+    num_series = 5
+    num_timesteps_hist = 2
+    num_timesteps_pred = 3
+    emb_dim = 6
+    bagging_size = 3
+
+    # Data which only depends on the series
+    hist_time = torch.arange(0, num_series)[None, :, None].expand(num_batches, -1, num_timesteps_hist)
+    hist_value = torch.arange(0, num_series)[None, :, None].expand(num_batches, -1, num_timesteps_hist)
+    pred_time = torch.arange(0, num_series)[None, :, None].expand(num_batches, -1, num_timesteps_pred)
+    pred_value = torch.arange(0, num_series)[None, :, None].expand(num_batches, -1, num_timesteps_pred)
+    series_emb = torch.arange(0, num_series)[None, :, None].expand(num_batches, -1, emb_dim)
+
+    out_hist_time, out_hist_value, out_pred_time, out_pred_value, out_series_emb = TACTiS._apply_bagging(
+        bagging_size, hist_time, hist_value, pred_time, pred_value, series_emb
+    )
+
+    for batch in range(num_batches):
+        for bag in range(bagging_size):
+            value = out_hist_time[batch, bag, 0]
+            assert (out_hist_time[batch, bag, :] == value).all()
+            assert (out_hist_value[batch, bag, :] == value).all()
+            assert (out_pred_time[batch, bag, :] == value).all()
+            assert (out_pred_value[batch, bag, :] == value).all()
+            assert (out_series_emb[batch, bag, :] == value).all()
