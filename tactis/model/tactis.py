@@ -16,7 +16,7 @@ limitations under the License.
 
 import torch
 from torch import nn
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import numpy
 
 from .encoder import Encoder, TemporalEncoder
@@ -146,6 +146,57 @@ class TACTiS(nn.Module):
             elayers.append(nn.ReLU())
         self.input_encoder = nn.Sequential(*elayers)
 
+    @staticmethod
+    def _apply_bagging(
+        bagging_size,
+        hist_time: torch.Tensor,
+        hist_value: torch.Tensor,
+        pred_time: torch.Tensor,
+        pred_value: torch.Tensor,
+        series_emb: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Only keep a small number of series for each of the input tensors.
+        Which series will be kept is randomly selected for each batch. The order is not preserved.
+
+        Parameters:
+        -----------
+        bagging_size: int
+            How many series to keep
+        hist_time: Tensor [batch, series, time steps]
+            A tensor containing the time steps associated with the values of hist_value.
+        hist_value: Tensor [batch, series, time steps]
+            A tensor containing the values that will be available at inference time.
+        pred_time: Tensor [batch, series, time steps]
+            A tensor containing the time steps associated with the values of pred_value.
+        pred_value: Tensor [batch, series, time steps]
+            A tensor containing the values that the model should learn to forecast at inference time.
+        series_emb: Tensor [batch, series, embedding size]
+            An embedding for each series, expanded over the batches.
+
+        Returns:
+        --------
+        hist_time: Tensor [batch, series, time steps]
+        hist_value: Tensor [batch, series, time steps]
+        pred_time: Tensor [batch, series, time steps]
+        pred_value: Tensor [batch, series, time steps]
+        series_emb: Tensor [batch, series, embedding size]
+            A subset of the input data, where only the given number of series is kept for each batch.
+        """
+        num_batches = hist_time.shape[0]
+        num_series = hist_time.shape[1]
+
+        # Make sure to have the exact same bag for all series
+        bags = [torch.randperm(num_series)[0:bagging_size] for _ in range(num_batches)]
+
+        hist_time = torch.stack([hist_time[i, bags[i], :] for i in range(num_batches)], dim=0)
+        hist_value = torch.stack([hist_value[i, bags[i], :] for i in range(num_batches)], dim=0)
+        pred_time = torch.stack([pred_time[i, bags[i], :] for i in range(num_batches)], dim=0)
+        pred_value = torch.stack([pred_value[i, bags[i], :] for i in range(num_batches)], dim=0)
+        series_emb = torch.stack([series_emb[i, bags[i], :] for i in range(num_batches)], dim=0)
+
+        return hist_time, hist_value, pred_time, pred_value, series_emb
+
     def forward(
         self, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor, pred_value: torch.Tensor
     ) -> torch.Tensor:
@@ -176,8 +227,10 @@ class TACTiS(nn.Module):
         num_pred_timesteps = pred_value.shape[2]
         device = hist_value.device
 
-        # Gets the embedding for each series [series, embedding size]
+        # Gets the embedding for each series [batch, series, embedding size]
+        # Expand over batches to be compatible with the bagging procedure, which select different series for each batch
         series_emb = self.series_encoder(torch.arange(hist_value.shape[1], device=device))
+        series_emb = series_emb[None, :, :].expand(num_batches, -1, -1)
 
         # Make sure that both time tensors are in the correct format
         if len(hist_time.shape) == 2:
@@ -189,14 +242,15 @@ class TACTiS(nn.Module):
         if pred_time.shape[1] == 1:
             pred_time = pred_time.expand(-1, num_series, -1)
 
-        # TODO Insert bagging here
         if self.bagging_size:
-            pass
+            hist_time, hist_value, pred_time, pred_value, series_emb = self._apply_bagging(
+                self.bagging_size, hist_time, hist_value, pred_time, pred_value, series_emb
+            )
 
         hist_encoded = torch.cat(
             [
                 hist_value[:, :, :, None],
-                series_emb[None, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
+                series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
                 torch.ones(num_batches, num_series, num_hist_timesteps, device=device),
             ],
             dim=3,
@@ -205,7 +259,7 @@ class TACTiS(nn.Module):
         pred_encoded = torch.cat(
             [
                 torch.zeros(num_batches, num_series, num_pred_timesteps, device=device),
-                series_emb[None, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
+                series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
                 torch.zeros(num_batches, num_series, num_pred_timesteps, device=device),
             ],
             dim=3,
