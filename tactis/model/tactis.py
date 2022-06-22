@@ -83,6 +83,112 @@ class PositionalEncoding(nn.Module):
         return self.dropout(output_encoded)
 
 
+class NormalizationIdentity:
+    """
+    Trivial normalization helper. Do nothing to its data.
+    """
+
+    def __init__(self, hist_value: torch.Tensor):
+        """
+        Parameters:
+        -----------
+        hist_value: torch.Tensor [batch, series, time steps]
+            Historical data which can be used in the normalization.
+        """
+        pass
+
+    def normalize(self, value: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize the given values according to the historical data sent in the constructor.
+
+        Parameters:
+        -----------
+        value: Tensor [batch, series, time steps]
+            A tensor containing the values to be normalized.
+
+        Returns:
+        --------
+        norm_value: Tensor [batch, series, time steps]
+            The normalized values.
+        """
+        return value
+
+    def denormalize(self, norm_value: torch.Tensor) -> torch.Tensor:
+        """
+        Undo the normalization done in the normalize() function.
+
+        Parameters:
+        -----------
+        norm_value: Tensor [batch, series, time steps, samples]
+            A tensor containing the normalized values to be denormalized.
+
+        Returns:
+        --------
+        value: Tensor [batch, series, time steps, samples]
+            The denormalized values.
+        """
+        return norm_value
+
+
+class NormalizationStandardization:
+    """
+    Normalization helper for the standardization.
+
+    The data for each batch and each series will be normalized by:
+    - substracting the historical data mean,
+    - and dividing by the historical data standard deviation.
+
+    Use a lower bound of 1e-8 for the standard deviation to avoid numerical problems.
+    """
+
+    def __init__(self, hist_value: torch.Tensor):
+        """
+        Parameters:
+        -----------
+        hist_value: torch.Tensor [batch, series, time steps]
+            Historical data which can be used in the normalization.
+        """
+        std, mean = torch.std_mean(hist_value, dim=2, unbiased=True, keepdim=True)
+        self.std = std.clamp(min=1e-8)
+        self.mean = mean
+
+    def normalize(self, value: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize the given values according to the historical data sent in the constructor.
+
+        Parameters:
+        -----------
+        value: Tensor [batch, series, time steps]
+            A tensor containing the values to be normalized.
+
+        Returns:
+        --------
+        norm_value: Tensor [batch, series, time steps]
+            The normalized values.
+        """
+        value -= self.mean
+        value /= self.std
+        return value
+
+    def denormalize(self, norm_value: torch.Tensor) -> torch.Tensor:
+        """
+        Undo the normalization done in the normalize() function.
+
+        Parameters:
+        -----------
+        norm_value: Tensor [batch, series, time steps, samples]
+            A tensor containing the normalized values to be denormalized.
+
+        Returns:
+        --------
+        value: Tensor [batch, series, time steps, samples]
+            The denormalized values.
+        """
+        norm_value *= self.std[:, :, :, None]
+        norm_value += self.mean[:, :, :, None]
+        return norm_value
+
+
 class TACTiS(nn.Module):
     """
     The top-level module for TACTiS.
@@ -98,6 +204,7 @@ class TACTiS(nn.Module):
         input_encoder_layers: int,
         bagging_size: Optional[int] = None,
         input_encoding_normalization: bool = True,
+        data_normalization: str = "none",
         loss_normalization: str = "series",
         positional_encoding: Optional[Dict[str, Any]] = None,
         encoder: Optional[Dict[str, Any]] = None,
@@ -120,6 +227,8 @@ class TACTiS(nn.Module):
         input_encoding_normalization: bool, default to True
             If true, the encoded input values (prior to the positional encoding) are scaled
             by the square root of their dimensionality.
+        data_normalization: str ["", "none", "standardization"], default to "series"
+            How to normalize the input values before sending them to the model.
         loss_normalization: str ["", "none", "series", "timesteps", "both"], default to "series"
             Scale the loss function by the number of series, timesteps, or both.
         positional_encoding: Optional[Dict[str, Any]], default to None
@@ -147,6 +256,8 @@ class TACTiS(nn.Module):
 
         assert (not bagging_size) or bagging_size <= num_series, "Bagging size must not be above number of series"
 
+        data_normalization = data_normalization.lower()
+        assert data_normalization in {"", "none", "standardization"}
         loss_normalization = loss_normalization.lower()
         assert loss_normalization in {"", "none", "series", "timesteps", "both"}
 
@@ -156,6 +267,12 @@ class TACTiS(nn.Module):
         self.input_encoder_layers = input_encoder_layers
         self.input_encoding_normalization = input_encoding_normalization
         self.loss_normalization = loss_normalization
+
+        self.data_normalization = {
+            "": NormalizationIdentity,
+            "none": NormalizationIdentity,
+            "standardization": NormalizationStandardization,
+        }[data_normalization]
 
         self.series_encoder = nn.Embedding(num_embeddings=num_series, embedding_dim=self.series_embedding_dim)
 
@@ -287,6 +404,11 @@ class TACTiS(nn.Module):
             )
             num_series = self.bagging_size
 
+        # The normalizer uses the same parameters for both historical and prediction values
+        normalizer = self.data_normalization(hist_value)
+        hist_value = normalizer.normalize(hist_value)
+        pred_value = normalizer.normalize(pred_value)
+
         hist_encoded = torch.cat(
             [
                 hist_value[:, :, :, None],
@@ -385,6 +507,10 @@ class TACTiS(nn.Module):
         if pred_time.shape[1] == 1:
             pred_time = pred_time.expand(-1, num_series, -1)
 
+        # The normalizer remembers its parameter to reverse it with the samples
+        normalizer = self.data_normalization(hist_value)
+        hist_value = normalizer.normalize(hist_value)
+
         hist_encoded = torch.cat(
             [
                 hist_value[:, :, :, None],
@@ -431,4 +557,6 @@ class TACTiS(nn.Module):
         )
 
         samples = self.decoder.sample(num_samples, encoded, mask, true_value)
+
+        samples = normalizer.denormalize(samples)
         return samples

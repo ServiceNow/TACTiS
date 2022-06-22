@@ -12,7 +12,7 @@ limitations under the License.
 """
 
 import torch
-from tactis.model.tactis import PositionalEncoding, TACTiS
+from tactis.model.tactis import PositionalEncoding, TACTiS, NormalizationStandardization, NormalizationIdentity
 
 
 def test_positional_encoding_time_broadcast():
@@ -303,3 +303,68 @@ def test_sample_function():
     samples = net.sample(num_samples, hist_time, hist_value, pred_time)
 
     assert samples.shape == torch.Size([num_batches, num_series, num_timesteps_hist + num_timesteps_pred, num_samples])
+
+
+def normalization_identity_do_nothing():
+    """
+    Check that the identity normalization procedure has no impact on the data.
+    """
+    num_batches = 4
+    num_series = 5
+    num_timesteps_hist = 2
+    num_timesteps_pred = 3
+
+    # Data which only depends on which tensor it is
+    hist_value = torch.rand(num_batches, num_series, num_timesteps_hist)
+    pred_value = torch.rand(num_batches, num_series, num_timesteps_pred)
+
+    normalizer = NormalizationIdentity(hist_value)
+
+    assert hist_value == normalizer.normalize(hist_value)
+    assert pred_value == normalizer.normalize(pred_value)
+    assert hist_value[:, :, :, None] == normalizer.denormalize(hist_value[:, :, :, None])
+    assert pred_value[:, :, :, None] == normalizer.denormalize(pred_value[:, :, :, None])
+
+
+def normalization_standardization_inverse():
+    """
+    Check that normalize() and denormalize() are inverse function for NormalizationStandardization.
+    """
+    num_batches = 4
+    num_series = 5
+    num_timesteps_hist = 15
+    num_timesteps_pred = 12
+
+    # Data which only depends on which tensor it is
+    hist_value = torch.rand(num_batches, num_series, num_timesteps_hist)
+    pred_value = torch.rand(num_batches, num_series, num_timesteps_pred)
+
+    normalizer = NormalizationStandardization(hist_value)
+
+    norm_hist_value = normalizer.normalize(hist_value)
+    norm_pred_value = normalizer.normalize(pred_value)
+
+    assert torch.isclose(hist_value, normalizer.denormalize(norm_hist_value)).all()
+    assert torch.isclose(pred_value, normalizer.denormalize(norm_pred_value)).all()
+
+
+def normalization_standardization_std_mean():
+    """
+    Check that the data coming from normalize() of NormalizationStandardization has the correct mean and standard deviation.
+    """
+    num_batches = 4
+    num_series = 5
+    num_timesteps_hist = 15
+
+    # Data which only depends on which tensor it is
+    hist_value = torch.rand(num_batches, num_series, num_timesteps_hist)
+
+    normalizer = NormalizationStandardization(hist_value)
+
+    norm_hist_value = normalizer.normalize(hist_value)
+
+    mean = norm_hist_value.mean(dim=2)
+    std = norm_hist_value.std(dim=2)
+
+    assert torch.isclose(mean, 0).all()
+    assert torch.isclose(std, 1).all()
