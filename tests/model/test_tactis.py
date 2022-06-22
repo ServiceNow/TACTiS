@@ -248,7 +248,7 @@ def test_loss_function():
 
     loss = net.loss(hist_time, hist_value, pred_time, pred_value)
 
-    assert loss.shape == torch.Size([num_batches])
+    assert loss.shape == torch.Size([])
 
 
 def test_sample_function():
