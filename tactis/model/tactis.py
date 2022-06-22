@@ -98,12 +98,46 @@ class TACTiS(nn.Module):
         input_encoder_layers: int,
         bagging_size: Optional[int] = None,
         input_encoding_normalization: bool = True,
+        loss_normalization: str = "series",
         positional_encoding: Optional[Dict[str, Any]] = None,
         encoder: Optional[Dict[str, Any]] = None,
         temporal_encoder: Optional[Dict[str, Any]] = None,
         copula_decoder: Optional[Dict[str, Any]] = None,
         gaussian_decoder: Optional[Dict[str, Any]] = None,
     ):
+        """
+        Parameters:
+        -----------
+        num_series: int
+            Number of series of the data which will be sent to the model.
+        series_embedding_dim: int
+            The dimensionality of the per-series embedding.
+        input_encoder_layers: int
+            Number of layers in the MLP which encodes the input data.
+        bagging_size: Optional[int], default to None
+            If set, the loss() method will only consider a random subset of the series at each call.
+            The number of series kept is the value of this parameter.
+        input_encoding_normalization: bool, default to True
+            If true, the encoded input values (prior to the positional encoding) are scaled
+            by the square root of their dimensionality.
+        loss_normalization: str ["", "none", "series", "timesteps", "both"], default to "series"
+            Scale the loss function by the number of series, timesteps, or both.
+        positional_encoding: Optional[Dict[str, Any]], default to None
+            If set to a non-None value, uses a PositionalEncoding for the time encoding.
+            The options sent to the PositionalEncoding is content of this dictionary.
+        encoder: Optional[Dict[str, Any]], default to None
+            If set to a non-None value, uses a Encoder as the encoder.
+            The options sent to the Encoder is content of this dictionary.
+        temporal_encoder: Optional[Dict[str, Any]], default to None
+            If set to a non-None value, uses a TemporalEncoder as the encoder.
+            The options sent to the TemporalEncoder is content of this dictionary.
+        copula_decoder: Optional[Dict[str, Any]], default to None
+            If set to a non-None value, uses a CopulaDecoder as the decoder.
+            The options sent to the CopulaDecoder is content of this dictionary.
+        gaussian_decoder: Optional[Dict[str, Any]], default to None
+            If set to a non-None value, uses a GaussianDecoder as the decoder.
+            The options sent to the GaussianDecoder is content of this dictionary.
+        """
         super().__init__()
 
         assert (encoder is not None) + (temporal_encoder is not None) == 1, "Must select exactly one type of encoder"
@@ -113,11 +147,15 @@ class TACTiS(nn.Module):
 
         assert (not bagging_size) or bagging_size <= num_series, "Bagging size must not be above number of series"
 
+        loss_normalization = loss_normalization.lower()
+        assert loss_normalization in {"", "none", "series", "timesteps", "both"}
+
         self.num_series = num_series
         self.bagging_size = bagging_size
         self.series_embedding_dim = series_embedding_dim
         self.input_encoder_layers = input_encoder_layers
         self.input_encoding_normalization = input_encoding_normalization
+        self.loss_normalization = loss_normalization
 
         self.series_encoder = nn.Embedding(num_embeddings=num_series, embedding_dim=self.series_embedding_dim)
 
@@ -219,8 +257,8 @@ class TACTiS(nn.Module):
 
         Returns:
         --------
-        loss: torch.Tensor [batch]
-            The loss function of TACTiS, with lower values being better.
+        loss: torch.Tensor []
+            The loss function of TACTiS, with lower values being better. Averaged over batches.
         """
         num_batches = hist_value.shape[0]
         num_series = hist_value.shape[1]
@@ -296,7 +334,11 @@ class TACTiS(nn.Module):
         )
 
         loss = self.decoder.loss(encoded, mask, true_value)
-        return loss
+        if self.loss_normalization in {"series", "both"}:
+            loss /= num_series
+        if self.loss_normalization in {"timesteps", "both"}:
+            loss /= num_pred_timesteps
+        return loss.mean()
 
     def sample(
         self, num_samples: int, hist_time: torch.Tensor, hist_value: torch.Tensor, pred_time: torch.Tensor
