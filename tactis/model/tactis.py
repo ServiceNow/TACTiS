@@ -166,8 +166,7 @@ class NormalizationStandardization:
         norm_value: Tensor [batch, series, time steps]
             The normalized values.
         """
-        value -= self.mean
-        value /= self.std
+        value = (value - self.mean) / self.std
         return value
 
     def denormalize(self, norm_value: torch.Tensor) -> torch.Tensor:
@@ -184,8 +183,7 @@ class NormalizationStandardization:
         value: Tensor [batch, series, time steps, samples]
             The denormalized values.
         """
-        norm_value *= self.std[:, :, :, None]
-        norm_value += self.mean[:, :, :, None]
+        norm_value = (norm_value * self.std[:, :, :, None]) + self.mean[:, :, :, None]
         return norm_value
 
 
@@ -442,8 +440,8 @@ class TACTiS(nn.Module):
 
         mask = torch.cat(
             [
-                torch.ones(num_batches, num_series, num_hist_timesteps, dtype=bool),
-                torch.zeros(num_batches, num_series, num_pred_timesteps, dtype=bool),
+                torch.ones(num_batches, num_series, num_hist_timesteps, dtype=bool, device=device),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, dtype=bool, device=device),
             ],
             dim=2,
         )
@@ -543,15 +541,15 @@ class TACTiS(nn.Module):
 
         mask = torch.cat(
             [
-                torch.ones(num_batches, num_series, num_hist_timesteps, dtype=bool),
-                torch.zeros(num_batches, num_series, num_pred_timesteps, dtype=bool),
+                torch.ones(num_batches, num_series, num_hist_timesteps, dtype=bool, device=device),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, dtype=bool, device=device),
             ],
             dim=2,
         )
         true_value = torch.cat(
             [
                 hist_value,
-                torch.zeros(num_batches, num_series, num_pred_timesteps),
+                torch.zeros(num_batches, num_series, num_pred_timesteps, device=device),
             ],
             dim=2,
         )
