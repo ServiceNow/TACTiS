@@ -1,0 +1,105 @@
+"""
+Copyright 2022 ServiceNow
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+>> Compatibility shells between the TACTiS models and the GluonTS and PyTorchTS libraries.
+"""
+
+from typing import Any, Dict
+
+import torch
+from torch import nn
+
+from ..model.tactis import TACTiS
+
+
+class TACTiSTrainingNetwork(nn.Module):
+    """
+    A shell on top of the TACTiS module, to be used during training only.
+    """
+
+    def __init__(
+        self,
+        num_series: int,
+        model_parameters: Dict[str, Any],
+    ):
+        """
+        Parameters:
+        -----------
+        num_series: int
+            Number of series of the data which will be sent to the model.
+        model_parameters: Dict[str, Any]
+            The parameters of the underlying TACTiS model, as a dictionary.
+        """
+        super().__init__()
+
+        self.model = TACTiS(num_series, **model_parameters)
+
+    def forward(
+        self,
+        past_target_norm: torch.Tensor,
+        future_target_norm: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Parameters:
+        -----------
+        past_target_norm: torch.Tensor [batch, time steps, series]
+            The historical data that will be available at inference time.
+        future_target_norm: torch.Tensor [batch, time steps, series]
+            The data to be forecasted at inference time.
+        """
+        # The data coming from Gluon is not in the shape we use in the model, so transpose it.
+        hist_value = past_target_norm.transpose(1, 2)
+        pred_value = future_target_norm.transpose(1, 2)
+
+        # For the time steps, we take for granted that the data is aligned with a constant frequency
+        hist_time = torch.arange(0, hist_value.shape[2], dtype=int, device=hist_value.device)[None, :].expand(
+            hist_value.shape[0], -1
+        )
+        pred_time = torch.arange(
+            hist_value.shape[2], hist_value.shape[2] + pred_value.shape[2], dtype=int, device=pred_value.device
+        )[None, :].expand(pred_value.shape[0], -1)
+
+        return self.model.loss(hist_time=hist_time, hist_value=hist_value, pred_time=pred_time, pred_value=pred_value)
+
+
+class TACTiSPredictionNetwork(nn.Module):
+    """
+    A shell on top of the TACTiS module, to be used during inference only.
+    """
+
+    def __init__(
+        self,
+        num_series: int,
+        model_parameters: Dict[str, Any],
+        prediction_length: int,
+        num_parallel_samples: int,
+    ):
+        """
+        Parameters:
+        -----------
+        num_series: int
+            Number of series of the data which will be sent to the model.
+        model_parameters: Dict[str, Any]
+            The parameters of the underlying TACTiS model, as a dictionary.
+        """
+        super().__init__()
+
+        self.model = TACTiS(num_series, **model_parameters)
+        self.num_parallel_samples = num_parallel_samples
+        self.prediction_length = prediction_length
+
+    def forward(
+        self,
+        past_target_norm: torch.Tensor,
+        future_target_norm: torch.Tensor,
+    ) -> torch.Tensor:
+        breakpoint()
