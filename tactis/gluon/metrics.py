@@ -173,7 +173,6 @@ def compute_validation_metrics(
     --------
     result: Dict[str, float]
         A dictionary containing the various metrics.
-
     """
     if split:
         split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
