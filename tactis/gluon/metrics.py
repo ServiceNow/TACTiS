@@ -16,7 +16,8 @@ limitations under the License.
 
 import os
 import pickle
-from typing import Iterable, Iterator, Optional, Dict
+import sys
+from typing import Dict, Iterable, Iterator, Optional
 
 import numpy as np
 import pandas as pd
@@ -44,6 +45,24 @@ class SplitValidationTransform(transform.FlatMapTransformation):
             data_copy = data.copy()
             data_copy["target"] = data["target"][..., :end_point]
             yield data_copy
+
+
+class SuppressOutput:
+    """
+    Context controller to remove any printing to standard output and standard error.
+    Inspired from:
+    https://stackoverflow.com/questions/8391411/how-to-block-calls-to-print
+    """
+
+    def __enter__(self):
+        self._stdout_bkp = sys.stdout
+        self._stderr_bkp = sys.stderr
+        sys.stdout = sys.stderr = open(os.devnull, "w")
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._stdout_bkp
+        sys.stderr = self._stderr_bkp
 
 
 def _compute_energy_score(target_data: np.array, samples: np.array, num_samples: int, beta: float) -> np.float32:
@@ -198,7 +217,9 @@ def compute_validation_metrics(
     # Evaluate the quality of the model
     evaluator = MultivariateEvaluator(quantiles=(np.arange(20) / 20.0)[1:], target_agg_funcs={"sum": np.sum})
 
-    agg_metric, _ = evaluator(targets, forecasts)
+    # The GluonTS evaluator is very noisy on the standard error, so suppress it.
+    with SuppressOutput():
+        agg_metric, _ = evaluator(targets, forecasts)
 
     return {
         "CRPS": agg_metric.get("mean_wQuantileLoss", float("nan")),

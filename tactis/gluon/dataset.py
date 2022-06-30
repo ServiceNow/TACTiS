@@ -222,13 +222,16 @@ def generate_hp_search_datasets(
         train_data.append(s_train)
 
         s_valid = series.copy()
+        s_valid["start"] = s_valid["start"] + validation_length * timestep_delta
         s_valid["target"] = series["target"][validation_start_index:first_backtest_index]
         s_valid["item_id"] = i
         valid_data.append(s_valid)
 
-    grouper = MultivariateGrouper()
+    # MultivariateGrouper call operation is not without side-effect, so we need two independant ones.
+    train_grouper = MultivariateGrouper()
+    valid_grouper = MultivariateGrouper()
 
-    return metadata, grouper(train_data), grouper(valid_data)
+    return metadata, train_grouper(train_data), valid_grouper(valid_data)
 
 
 def maximum_backtest_id(name: str) -> int:
@@ -315,6 +318,7 @@ def generate_backtesting_datasets(
             test_start_index = test_end_index - metadata.prediction_length - history_length
 
             s_test = series.copy()
+            s_test["start"] = series["start"] + test_start_index * timestep_delta
             s_test["target"] = series["target"][test_start_index:test_end_index]
             s_test["item_id"] = len(test_data)
             test_data.append(s_test)
