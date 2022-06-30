@@ -428,7 +428,7 @@ class TACTiS(nn.Module):
         encoded = torch.cat([hist_encoded, pred_encoded], dim=2)
         encoded = self.input_encoder(encoded)
         if self.input_encoding_normalization:
-            encoded *= self.encoder.embedding_dim**0.5
+            encoded = encoded * self.encoder.embedding_dim**0.5
 
         # Add the time encoding here after the input encoding to be compatible with how positional encoding is used.
         # Adjustments may be required for other ways to encode time.
@@ -455,9 +455,9 @@ class TACTiS(nn.Module):
 
         loss = self.decoder.loss(encoded, mask, true_value)
         if self.loss_normalization in {"series", "both"}:
-            loss /= num_series
+            loss = loss / num_series
         if self.loss_normalization in {"timesteps", "both"}:
-            loss /= num_pred_timesteps
+            loss = loss / num_pred_timesteps
         return loss.mean()
 
     def sample(
