@@ -183,7 +183,7 @@ def plot_four_forecasts(
 
     # Reorder the legend, and have a unique one for all 4 plots.
     handles, labels = axs.flat[0].get_legend_handles_labels()
-    order = [2, 3, 4, 5, 0]
+    order = [5, 0, 1, 2, 3]
     handles = [handles[o] for o in order]
     labels = [labels[o] for o in order]
     fig.legend(handles, labels, bbox_to_anchor=(0.91, 0.89), loc="upper left")

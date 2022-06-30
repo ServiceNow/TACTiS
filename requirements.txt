@@ -1,0 +1,11 @@
+gluonts==0.9.6
+pytorchts==0.6.0
+mxnet==1.9.1
+numpy
+scipy
+matplotlib
+seaborn
+jupyter
+pytest
+black
+flake8
