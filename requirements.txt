@@ -1,6 +1,9 @@
 gluonts==0.9.6
 pytorchts==0.6.0
 mxnet==1.9.1
+torch==1.12.0
+pytorch-lightning==1.6.4
+pandas==1.4.3
 numpy
 scipy
 matplotlib
