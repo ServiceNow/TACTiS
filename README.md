@@ -4,7 +4,7 @@ Alexandre Drouin, Étienne Marcotte, Nicolas Chapados (2022). [TACTiS: Transform
 
 > The estimation of time-varying quantities is a fundamental component of decision making in fields such as healthcare and finance. However, the practical utility of such estimates is limited by how accurately they quantify predictive uncertainty. In this work, we address the problem of estimating the joint predictive distribution of high-dimensional multivariate time series. We propose a versatile method, based on the transformer architecture, that estimates joint distributions using an attention-based decoder that provably learns to mimic the properties of non-parametric copulas. The resulting model has several desirable properties: it can scale to hundreds of time series, supports both forecasting and interpolation, can handle unaligned and non-uniformly sampled data, and can seamlessly adapt to missing data during training. We demonstrate these properties empirically and show that our model produces state-of-the-art predictions on multiple real-world datasets.
 
-[[Spotlight video]](https://icml.cc/virtual/2022/spotlight/16594)
+[[Paper]](https://proceedings.mlr.press/v162/drouin22a.html) [[Spotlight video]](https://icml.cc/virtual/2022/spotlight/16594)
 
 <br />
 <p align="center">
