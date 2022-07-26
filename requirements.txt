@@ -12,3 +12,4 @@ jupyter
 pytest
 black
 flake8
+tqdm
