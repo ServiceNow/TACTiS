@@ -114,6 +114,8 @@ def _count_timesteps(left: pd.Timestamp, right: pd.Timestamp, delta: pd.DateOffs
     Count how many timesteps there are between left and right, according to the given timesteps delta.
     If the number if not integer, round down.
     """
+    if  type(left) == pd.Period: left = left.to_timestamp()
+    if  type(right) == pd.Period: right = right.to_timestamp()
     assert right >= left, f"Case where left ({left}) is after right ({right}) is not implemented in _count_timesteps()."
     try:
         return (right - left) // delta
