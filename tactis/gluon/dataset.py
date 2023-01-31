@@ -19,8 +19,10 @@ from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from gluonts.dataset.common import DataEntry, MetaData, Dataset
+import logging
+from gluonts.dataset.common import DataEntry, MetaData, Dataset, ListDataset
 from gluonts.dataset.multivariate_grouper import MultivariateGrouper
+from gluonts.dataset.field_names import FieldName
 from gluonts.dataset.repository._tsf_datasets import Dataset as MonashDataset
 from gluonts.dataset.repository._tsf_datasets import datasets as monash_datasets
 from gluonts.dataset.repository.datasets import (
@@ -251,6 +253,42 @@ def maximum_backtest_id(name: str) -> int:
     return len(_DATA_BACKTEST_DEF[name]["train_dates"])
 
 
+class __FixedMultivariateGrouper(MultivariateGrouper):
+    """
+    Temporary fix for MultivariateGrouper when used with NumPy >= 1.24.
+    See: https://github.com/awslabs/gluonts/issues/2612
+    """
+
+    def _prepare_test_data(self, dataset: Dataset) -> Dataset:
+        assert self.num_test_dates is not None
+        assert len(dataset) % self.num_test_dates == 0
+
+        logging.info("group test time series to datasets")
+
+        test_length = len(dataset) // self.num_test_dates
+
+        all_entries = list()
+        for test_start in range(0, len(dataset), test_length):
+            dataset_at_test_date = dataset[test_start : test_start + test_length]
+            transformed_target = self._transform_target(self._left_pad_data, dataset_at_test_date)[FieldName.TARGET]
+
+            grouped_data = dict()
+            grouped_data[FieldName.TARGET] = np.array(list(transformed_target), dtype=np.float32)
+            for data in dataset:
+                fields = data.keys()
+                break
+            if FieldName.FEAT_DYNAMIC_REAL in fields:
+                grouped_data[FieldName.FEAT_DYNAMIC_REAL] = np.vstack(
+                    [data[FieldName.FEAT_DYNAMIC_REAL] for data in dataset],
+                )
+            grouped_data = self._restrict_max_dimensionality(grouped_data)
+            grouped_data[FieldName.START] = self.first_timestamp
+            grouped_data[FieldName.FEAT_STATIC_CAT] = [0]
+            all_entries.append(grouped_data)
+
+        return ListDataset(all_entries, freq=self.frequency, one_dim_target=False)
+
+
 def generate_backtesting_datasets(
     name: str, backtest_id: int, history_length_multiple: float, use_cached: bool = True
 ) -> Tuple[MetaData, Dataset, Dataset]:
@@ -324,6 +362,6 @@ def generate_backtesting_datasets(
             test_data.append(s_test)
 
     train_grouper = MultivariateGrouper()
-    test_grouper = MultivariateGrouper(num_test_dates=num_test_dates)
+    test_grouper = __FixedMultivariateGrouper(num_test_dates=num_test_dates)
 
     return metadata, train_grouper(train_data), test_grouper(test_data)
