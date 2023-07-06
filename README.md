@@ -32,3 +32,5 @@ Please use the following Bibtex entry to cite TACTiS.
   url = 	 {https://proceedings.mlr.press/v162/drouin22a.html}
 }
 ```
+## Vulnerability Reporting
+Please notify psirt-oss@servicenow.com regarding any vulnerability reports in addition to following current reporting procedure.
