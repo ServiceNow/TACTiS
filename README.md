@@ -22,7 +22,3 @@ Please use the following Bibtex entry to cite TACTiS-2.
 ```
 Coming soon!
 ```
-
-
-## Vulnerability Reporting
-Please notify psirt-oss@servicenow.com regarding any vulnerability reports in addition to following current reporting procedure.
