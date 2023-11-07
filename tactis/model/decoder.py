@@ -110,9 +110,7 @@ class CopulaDecoder(nn.Module):
         if not self.skip_copula:
             if attentional_copula is not None:
                 self.copula = AttentionalCopula(
-                    input_dim=copula_input_dim,
-                    activation_function=activation_function,
-                    **attentional_copula
+                    input_dim=copula_input_dim, activation_function=activation_function, **attentional_copula
                 )
 
         if dsf_marginal is not None:
@@ -164,13 +162,9 @@ class CopulaDecoder(nn.Module):
         # Assume that the mask is constant inside the batch (every sample has the same hist-pred split)
         mask = mask[0, :]  # (series * time steps)
 
-        hist_encoded_flow = flow_encoded[
-            :, mask, :
-        ]  # [batch, series*(num_hist_timesteps), embedding]
+        hist_encoded_flow = flow_encoded[:, mask, :]  # [batch, series*(num_hist_timesteps), embedding]
         if not self.skip_copula:
-            hist_encoded_copula = copula_encoded[
-                :, mask, :
-            ]  # [batch, series*(num_hist_timesteps), embedding]
+            hist_encoded_copula = copula_encoded[:, mask, :]  # [batch, series*(num_hist_timesteps), embedding]
         pred_encoded_flow = flow_encoded[:, ~mask, :]
         if not self.skip_copula:
             pred_encoded_copula = copula_encoded[:, ~mask, :]
@@ -188,9 +182,7 @@ class CopulaDecoder(nn.Module):
 
         # Transform to [0,1] using the marginals
         hist_true_u = self.marginal.forward_no_logdet(hist_encoded_flow, hist_true_x)
-        pred_true_u, marginal_logdet = self.marginal.forward_logdet(
-            pred_encoded_flow, pred_true_x
-        )
+        pred_true_u, marginal_logdet = self.marginal.forward_logdet(pred_encoded_flow, pred_true_x)
 
         if not self.skip_copula:
             copula_loss = self.copula.loss(
@@ -240,9 +232,7 @@ class CopulaDecoder(nn.Module):
         samples: torch.Tensor [batch, series, time steps, samples]
             Samples drawn from the forecasted distribution.
         """
-        target_shape = torch.Size(
-            (true_value.shape[0], true_value.shape[1], true_value.shape[2], num_samples)
-        )
+        target_shape = torch.Size((true_value.shape[0], true_value.shape[1], true_value.shape[2], num_samples))
 
         B, S, T, E = flow_encoded.shape
         flow_encoded = _merge_series_time_dims(flow_encoded)
@@ -280,9 +270,7 @@ class CopulaDecoder(nn.Module):
             )
         else:
             num_batches, num_variables, _ = pred_encoded_flow.shape
-            pred_samples = torch.rand(
-                num_batches, num_variables, num_samples, device=pred_encoded_flow.device
-            )
+            pred_samples = torch.rand(num_batches, num_variables, num_samples, device=pred_encoded_flow.device)
 
         if not self.skip_sampling_marginal:
             # Transform away from [0,1] using the marginals
@@ -368,25 +356,21 @@ class AttentionalCopula(nn.Module):
         # After each layer, we transform the embedding using a feed-forward network, consisting of
         # two linear layer with a ReLu in-between both
         # At the very beginning, we have a linear layer to change the embedding to the proper dimensionality
-        self.dimension_shifting_layer = nn.Linear(
-            self.input_dim, self.attention_heads * self.attention_dim
-        )
+        self.dimension_shifting_layer = nn.Linear(self.input_dim, self.attention_heads * self.attention_dim)
 
         if activation_function == "relu":
             activation = nn.ReLU
 
         if attention_mlp_class == "_easy_mlp":
             mlp_args_key = {
-                "input_dim": self.input_dim
-                + 1,  # + 1 since the marginals will be concatenated
+                "input_dim": self.input_dim + 1,  # + 1 since the marginals will be concatenated
                 "hidden_dim": self.mlp_dim,
                 "output_dim": self.attention_dim,
                 "num_layers": self.mlp_layers,
                 "activation": activation,
             }
             mlp_args_value = {
-                "input_dim": self.input_dim
-                + 1,  # + 1 since the marginals will be concatenated
+                "input_dim": self.input_dim + 1,  # + 1 since the marginals will be concatenated
                 "hidden_dim": self.mlp_dim,
                 "output_dim": self.attention_dim,
                 "num_layers": self.mlp_layers,
@@ -395,13 +379,11 @@ class AttentionalCopula(nn.Module):
             mlp_class = _easy_mlp
         elif attention_mlp_class == "_simple_linear_projection":
             mlp_args_key = {
-                "input_dim": self.input_dim
-                + 1,  # + 1 since the marginals will be concatenated
+                "input_dim": self.input_dim + 1,  # + 1 since the marginals will be concatenated
                 "output_dim": self.attention_dim,
             }
             mlp_args_value = {
-                "input_dim": self.input_dim
-                + 1,  # + 1 since the marginals will be concatenated
+                "input_dim": self.input_dim + 1,  # + 1 since the marginals will be concatenated
                 "output_dim": self.attention_dim,
             }
             mlp_class = _simple_linear_projection
@@ -415,30 +397,21 @@ class AttentionalCopula(nn.Module):
         # The key and value creators take the input embedding together with the sampled [0,1] value as an input
         self.key_creators = nn.ModuleList(
             [
-                nn.ModuleList(
-                    [mlp_class(**mlp_args_key) for _ in range(key_attention_heads)]
-                )
+                nn.ModuleList([mlp_class(**mlp_args_key) for _ in range(key_attention_heads)])
                 for _ in range(self.attention_layers)
             ]
         )
         self.value_creators = nn.ModuleList(
             [
-                nn.ModuleList(
-                    [mlp_class(**mlp_args_value) for _ in range(value_attention_heads)]
-                )
+                nn.ModuleList([mlp_class(**mlp_args_value) for _ in range(value_attention_heads)])
                 for _ in range(self.attention_layers)
             ]
         )
 
         # one per layer
-        self.attention_dropouts = nn.ModuleList(
-            [nn.Dropout(self.dropout) for _ in range(self.attention_layers)]
-        )
+        self.attention_dropouts = nn.ModuleList([nn.Dropout(self.dropout) for _ in range(self.attention_layers)])
         self.attention_layer_norms = nn.ModuleList(
-            [
-                nn.LayerNorm(output_dims, elementwise_affine=False)
-                for _ in range(self.attention_layers)
-            ]
+            [nn.LayerNorm(output_dims, elementwise_affine=False) for _ in range(self.attention_layers)]
         )
         self.feed_forwards = nn.ModuleList(
             [
@@ -453,10 +426,7 @@ class AttentionalCopula(nn.Module):
             ]
         )
         self.feed_forward_layer_norms = nn.ModuleList(
-            [
-                nn.LayerNorm(output_dims, elementwise_affine=False)
-                for _ in range(self.attention_layers)
-            ]
+            [nn.LayerNorm(output_dims, elementwise_affine=False) for _ in range(self.attention_layers)]
         )
 
         # Parameter extractor for the categorical distribution
@@ -537,12 +507,8 @@ class AttentionalCopula(nn.Module):
             key_input_pred = torch.cat([pred_encoded, pred_true_u[:, :, None]], axis=2)
             key_input = torch.cat([key_input_hist, key_input_pred], axis=1)
 
-            value_input_hist = torch.cat(
-                [hist_encoded, hist_true_u[:, :, None]], axis=2
-            )
-            value_input_pred = torch.cat(
-                [pred_encoded, pred_true_u[:, :, None]], axis=2
-            )
+            value_input_hist = torch.cat([hist_encoded, hist_true_u[:, :, None]], axis=2)
+            value_input_pred = torch.cat([pred_encoded, pred_true_u[:, :, None]], axis=2)
             value_input = torch.cat([value_input_hist, value_input_pred], axis=1)
 
             # Keys shape in every layer: [bsz, num_attention_heads, num_history+num_variables, attention_dim]
@@ -555,10 +521,7 @@ class AttentionalCopula(nn.Module):
             # Values shape in every layer: [bsz, num_attention_heads, num_history+num_variables, attention_dim]
             values.append(
                 torch.cat(
-                    [
-                        mlp(value_input)[:, None, :, :]
-                        for mlp in self.value_creators[layer]
-                    ],
+                    [mlp(value_input)[:, None, :, :] for mlp in self.value_creators[layer]],
                     axis=1,
                 )
             )
@@ -621,9 +584,7 @@ class AttentionalCopula(nn.Module):
 
             # Merge back the various heads to allow the feed forwards module to share information between heads
             # Shape: [b, v, h*j]
-            att_merged_heads = att.reshape(
-                att.shape[0], att.shape[1], att.shape[2] * att.shape[3]
-            )
+            att_merged_heads = att.reshape(att.shape[0], att.shape[1], att.shape[2] * att.shape[3])
             # print("Q:", att_value_heads.shape, "K:", keys[layer].shape, "V:", values[layer].shape, "Mask:", product_mask.shape)
             # print("Attn:", att_merged_heads.shape, "Attn Scores", weights.shape)
 
@@ -653,9 +614,7 @@ class AttentionalCopula(nn.Module):
         # Note: This section could instead call a specialized module to allow for easier customization.
         # Get conditional distributions over bins for all variables but the first one.
         # The first one is considered to always be U(0,1), which has a constant logarithm likelihood of 0.
-        logits = self.dist_extractors(att_value)[
-            :, 1:, :
-        ]  # shape: [b, variables*timesteps - 1, self.resolution]
+        logits = self.dist_extractors(att_value)[:, 1:, :]  # shape: [b, variables*timesteps - 1, self.resolution]
 
         # We multiply the probability by self.resolution to get the PDF of the continuous-by-part distribution.
         # prob = self.resolution * softmax(logits, dim=2)
@@ -711,28 +670,20 @@ class AttentionalCopula(nn.Module):
         permutation = torch.arange(0, num_variables).long()
         permutations = torch.stack([permutation for _ in range(num_samples)])
 
-        key_value_input_hist = torch.cat(
-            [hist_encoded, hist_true_u[:, :, None]], axis=2
-        )
+        key_value_input_hist = torch.cat([hist_encoded, hist_true_u[:, :, None]], axis=2)
 
         # The MLP which generates the keys and values used the encoded embedding + transformed true values.
         # Keys and values shape in every layer FOR HISTORY: [bsz, num_attention_heads, num_history, attention_dim]
         keys_hist = [
             torch.cat(
-                [
-                    mlp(key_value_input_hist)[:, None, :, :]
-                    for mlp in self.key_creators[layer]
-                ],
+                [mlp(key_value_input_hist)[:, None, :, :] for mlp in self.key_creators[layer]],
                 axis=1,
             )
             for layer in range(self.attention_layers)
         ]
         values_hist = [
             torch.cat(
-                [
-                    mlp(key_value_input_hist)[:, None, :, :]
-                    for mlp in self.value_creators[layer]
-                ],
+                [mlp(key_value_input_hist)[:, None, :, :] for mlp in self.value_creators[layer]],
                 axis=1,
             )
             for layer in range(self.attention_layers)
@@ -793,13 +744,9 @@ class AttentionalCopula(nn.Module):
                     )
 
                     keys_hist_current_layer = copy.deepcopy(keys_hist[layer])
-                    keys_samples_current_layer = copy.deepcopy(
-                        keys_samples[layer][:, :, :, 0:i, :]
-                    )
+                    keys_samples_current_layer = copy.deepcopy(keys_samples[layer][:, :, :, 0:i, :])
                     values_hist_current_layer = copy.deepcopy(values_hist[layer])
-                    values_samples_current_layer = copy.deepcopy(
-                        values_samples[layer][:, :, :, 0:i, :]
-                    )
+                    values_samples_current_layer = copy.deepcopy(values_samples[layer][:, :, :, 0:i, :])
 
                     # Calculate attention weights
                     # Einstein sum indices:
@@ -808,15 +755,11 @@ class AttentionalCopula(nn.Module):
                     # h: attention head number
                     # w: variable we want to get information from (history or prediction)
                     # i: embedding dimension of the keys and queries (self.input_dim)
-                    product_hist = torch.einsum(
-                        "bnhi,bhwi->bnhw", att_value_heads, keys_hist_current_layer
-                    )
+                    product_hist = torch.einsum("bnhi,bhwi->bnhw", att_value_heads, keys_hist_current_layer)
                     # keys_samples is full of zero starting at i of the 4th dimension (w)
                     # Shape of product_samples: [bsz, num_samples, num_attention_heads, i]
                     # i since only i variables can be seen
-                    product_samples = torch.einsum(
-                        "bnhi,bnhwi->bnhw", att_value_heads, keys_samples_current_layer
-                    )
+                    product_samples = torch.einsum("bnhi,bnhwi->bnhw", att_value_heads, keys_samples_current_layer)
                     # # NOTE: product_samples could also be computed as follows
                     # b, n, h, d = att_value_heads.shape
                     # b, n, h, w, d = keys_samples_current_layer.shape
@@ -841,9 +784,7 @@ class AttentionalCopula(nn.Module):
                     # w: variable we want to get information from (history or prediction)
                     # j: embedding dimension of the values (self.hid_dim)
                     # att_hist is of shape [bsz, num_samples, num_attention_heads, hid_dim]
-                    att_hist = torch.einsum(
-                        "bnhw,bhwj->bnhj", weights_hist, values_hist_current_layer
-                    )
+                    att_hist = torch.einsum("bnhw,bhwj->bnhj", weights_hist, values_hist_current_layer)
                     # att_hist is of shape [bsz, num_samples, num_attention_heads, hid_dim]
                     att_samples = torch.einsum(
                         "bnhw,bnhwj->bnhj",
@@ -860,9 +801,7 @@ class AttentionalCopula(nn.Module):
                     att = att_hist + att_samples
 
                     # Merge back the various heads to allow the feed forwards module to share information between heads
-                    att_merged_heads = att.reshape(
-                        att.shape[0], att.shape[1], att.shape[2] * att.shape[3]
-                    )
+                    att_merged_heads = att.reshape(att.shape[0], att.shape[1], att.shape[2] * att.shape[3])
 
                     att_merged_heads = self.attention_dropouts[layer](att_merged_heads)
                     att_value = att_value + att_merged_heads
@@ -874,43 +813,29 @@ class AttentionalCopula(nn.Module):
                 # Below code is executed once all the layers of attention are complete
                 # att_value is of shape [bsz, num_samples, attn_heads*attn_dim]
                 # Get the output distribution parameters
-                logits = self.dist_extractors(att_value).reshape(
-                    num_batches * num_samples, self.resolution
-                )
+                logits = self.dist_extractors(att_value).reshape(num_batches * num_samples, self.resolution)
 
                 # Select a single variable in {0, 1, 2, ..., self.resolution-1} according to the probabilities from the softmax
                 # Why not the variable corresponding to the maximum value?
-                current_samples = torch.multinomial(
-                    input=torch.softmax(logits, dim=1), num_samples=1
-                )
+                current_samples = torch.multinomial(input=torch.softmax(logits, dim=1), num_samples=1)
                 # Each point in the same bucket is equiprobable, and we used a floor function in the training
-                current_samples = current_samples + torch.rand(
-                    *current_samples.shape
-                ).to(device)
+                current_samples = current_samples + torch.rand(*current_samples.shape).to(device)
                 # Normalize to a variable in the [0, 1) range
                 current_samples /= self.resolution
                 current_samples = current_samples.reshape(num_batches, num_samples)
 
             # Compute the key and value associated with the newly sampled variable, for the attention of the next ones.
             # Shape: [num_batches, num_samples, embedding dimension+1]
-            key_value_input = torch.cat(
-                [current_pred_encoded, current_samples[:, :, None]], axis=-1
-            )
+            key_value_input = torch.cat([current_pred_encoded, current_samples[:, :, None]], axis=-1)
             for layer in range(self.attention_layers):
                 # Shape: [num_batches, num_samples, num_attention_heads, attn_dim]
                 new_keys = torch.cat(
-                    [
-                        k(key_value_input)[:, :, None, :]
-                        for k in self.key_creators[layer]
-                    ],
+                    [k(key_value_input)[:, :, None, :] for k in self.key_creators[layer]],
                     axis=2,
                 )
                 # Shape: [num_batches, num_samples, num_attention_heads, attn_dim]
                 new_values = torch.cat(
-                    [
-                        v(key_value_input)[:, :, None, :]
-                        for v in self.value_creators[layer]
-                    ],
+                    [v(key_value_input)[:, :, None, :] for v in self.value_creators[layer]],
                     axis=2,
                 )
                 # Store the computed keys and values for the ith variable in the ith slot

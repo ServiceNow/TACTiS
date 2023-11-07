@@ -76,9 +76,7 @@ def make_evaluation_predictions(
     def truncate_target(data):
         data = data.copy()
         target = data["target"]
-        assert (
-            target.shape[-1] >= prediction_length
-        )  # handles multivariate case (target_dim, history_length)
+        assert target.shape[-1] >= prediction_length  # handles multivariate case (target_dim, history_length)
         data["target"] = target[..., : -prediction_length - lead_time]
         return data
 

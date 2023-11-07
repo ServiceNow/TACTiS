@@ -271,9 +271,7 @@ class TACTiSEstimator(PyTorchEstimator):
             ).to(device=device)
         copy_parameters(trained_network, prediction_network)
 
-        output_transform = (
-            cdf_to_gaussian_forward_transform if self.cdf_normalization else None
-        )
+        output_transform = cdf_to_gaussian_forward_transform if self.cdf_normalization else None
         input_names = get_module_forward_input_names(prediction_network)
         prediction_splitter = self.create_instance_splitter("test")
 
@@ -311,9 +309,7 @@ class TACTiSEstimator(PyTorchEstimator):
 
         training_iter_dataset = TransformedIterableDataset(
             dataset=training_data,
-            transform=transformation
-            + training_instance_splitter
-            + SelectFields(input_names),
+            transform=transformation + training_instance_splitter + SelectFields(input_names),
             is_train=True,
             shuffle_buffer_length=shuffle_buffer_length,
             cache_data=cache_data,
@@ -332,18 +328,12 @@ class TACTiSEstimator(PyTorchEstimator):
         if validation_data is not None:
             validation_instance_splitter = self.create_instance_splitter("validation")
 
-            input_transform = (
-                transformation
-                + validation_instance_splitter
-                + SelectFields(input_names)
-            )
+            input_transform = transformation + validation_instance_splitter + SelectFields(input_names)
             if not backtesting:
                 print("Creating validation dataset with SplitValidationTransform")
                 validation_iter_dataset = TransformedDataset(
                     validation_data,
-                    transformation=SplitValidationTransform(
-                        self.history_length + self.prediction_length
-                    ),
+                    transformation=SplitValidationTransform(self.history_length + self.prediction_length),
                 )
             else:
                 print("Creating validation dataset without SplitValidationTransform")
@@ -365,9 +355,7 @@ class TACTiSEstimator(PyTorchEstimator):
         return TrainOutput(
             transformation=transformation,
             trained_net=trained_net,
-            predictor=self.create_predictor(
-                transformation, trained_net, self.trainer.device
-            ),
+            predictor=self.create_predictor(transformation, trained_net, self.trainer.device),
         )
 
     def compute_validation_metrics_estimator(self, **kwargs):
@@ -376,9 +364,7 @@ class TACTiSEstimator(PyTorchEstimator):
         return_forecasts_and_targets = kwargs.pop("plot_matrices", False)
         transformation = self.create_transformation()
         device = self.trainer.device
-        predictor = self.create_predictor(
-            transformation=transformation, trained_network=model, device=device
-        )
+        predictor = self.create_predictor(transformation=transformation, trained_network=model, device=device)
         predictor.batch_size = eval_batch_size
         print("Setting validation predictor batch size to", eval_batch_size)
         if return_forecasts_and_targets:
@@ -387,9 +373,7 @@ class TACTiSEstimator(PyTorchEstimator):
             )
             return metrics, forecasts, targets
         else:
-            metrics = compute_validation_metrics(
-                predictor=predictor, return_forecasts_and_targets=False, **kwargs
-            )
+            metrics = compute_validation_metrics(predictor=predictor, return_forecasts_and_targets=False, **kwargs)
             return metrics
 
     def train(

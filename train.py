@@ -144,24 +144,18 @@ def main(args):
         print("Using backtest dataset with ID", args.backtest_id)
         if not args.prebacktest:
             print("CAUTION: The validation set here is the actual test set.")
-            metadata, train_data, valid_data = generate_backtesting_datasets(
-                dataset, args.backtest_id, history_factor
-            )
+            metadata, train_data, valid_data = generate_backtesting_datasets(dataset, args.backtest_id, history_factor)
         else:
             print("Using the prebacktesting set.")
             backtesting = False
             metadata, train_data, valid_data = generate_prebacktesting_datasets(
                 dataset, args.backtest_id, history_factor
             )
-            _, _, test_data = generate_backtesting_datasets(
-                dataset, args.backtest_id, history_factor
-            )
+            _, _, test_data = generate_backtesting_datasets(dataset, args.backtest_id, history_factor)
     else:
         backtesting = False
         print("Using HP search dataset")
-        metadata, train_data, valid_data = generate_hp_search_datasets(
-            dataset, history_factor
-        )
+        metadata, train_data, valid_data = generate_hp_search_datasets(dataset, history_factor)
 
     set_seed(seed)
     estimator_custom = TACTiSEstimator(
@@ -211,9 +205,7 @@ if __name__ == "__main__":
         choices=["relu", "elu", "glu", "gelu"],
     )
 
-    parser.add_argument(
-        "--optimizer", type=str, default="adam", choices=["rmsprop", "adam"]
-    )
+    parser.add_argument("--optimizer", type=str, default="adam", choices=["rmsprop", "adam"])
     parser.add_argument(
         "--checkpoint_path",
         type=str,

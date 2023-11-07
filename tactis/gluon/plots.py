@@ -112,9 +112,7 @@ def plot_single_forecast(
     # Highlight the forecasting regions
     axes.set_xlim(axes.get_xlim())
     xmin = forecast.index[0] - (forecast.index[1] - forecast.index[0]) / 2
-    xmax = forecast.index[-1] + (
-        forecast.index[-1] - forecast.index[0]
-    )  # Beyond the limit of the plot
+    xmax = forecast.index[-1] + (forecast.index[-1] - forecast.index[0])  # Beyond the limit of the plot
     axes.axvspan(xmin=xmin, xmax=xmax, facecolor=(0.2, 0.5, 0.2), alpha=0.1)
 
     # Allows for nice time-based ticks

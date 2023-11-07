@@ -18,9 +18,7 @@ import torch
 def check_memory(cuda_device):
     """Check the total memory and occupied memory for GPU"""
     devices_info = (
-        os.popen(
-            '"/usr/bin/nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader'
-        )
+        os.popen('"/usr/bin/nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader')
         .read()
         .strip()
         .split("\n")

@@ -122,10 +122,7 @@ class SigmoidFlow(nn.Module):
         x_pre = (w * sigm).sum(dim=-1)  # b, v
 
         logj = (
-            nn.functional.log_softmax(pre_w, dim=-1)
-            + log_sigmoid(pre_sigm)
-            + log_sigmoid(-pre_sigm)
-            + torch.log(a)
+            nn.functional.log_softmax(pre_w, dim=-1) + log_sigmoid(pre_sigm) + log_sigmoid(-pre_sigm) + torch.log(a)
         )  # b, v, h
 
         logj = log_sum_exp(logj, dim=-1, keepdim=False)  # b, v
@@ -139,11 +136,7 @@ class SigmoidFlow(nn.Module):
         x_pre_clipped = x_pre * (1 - EPSILON) + EPSILON * 0.5  # b, v
         xnew = torch.log(x_pre_clipped) - torch.log(1 - x_pre_clipped)  # b, v
 
-        logdet_ = (
-            logj
-            + math.log(1 - EPSILON)
-            - (torch.log(x_pre_clipped) + torch.log(-x_pre_clipped + 1))
-        )  # b, v
+        logdet_ = logj + math.log(1 - EPSILON) - (torch.log(x_pre_clipped) + torch.log(-x_pre_clipped + 1))  # b, v
 
         # Only keep the batch dimension, summing all others in case this method is called with more dimensions
         logdet = logdet_.sum(dim=tuple(range(1, logdet_.dim()))) + logdet
@@ -238,9 +231,7 @@ class DeepSigmoidFlow(nn.Module):
         # params: batches, samples, params dim
         # x: batches, samples
         for i, layer in enumerate(self.layers):
-            x = layer.forward_no_logdet(
-                params[..., i * self.params_length : (i + 1) * self.params_length], x
-            )
+            x = layer.forward_no_logdet(params[..., i * self.params_length : (i + 1) * self.params_length], x)
         return x
 
     def inverse(

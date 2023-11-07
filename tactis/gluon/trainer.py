@@ -123,9 +123,7 @@ class TACTISTrainer(Trainer):
 
         if self.load_checkpoint:
             set_seed(self.seed)
-            assert os.path.isfile(self.load_checkpoint), (
-                "Checkpoint " + self.load_checkpoint + "is invalid"
-            )
+            assert os.path.isfile(self.load_checkpoint), "Checkpoint " + self.load_checkpoint + "is invalid"
             print("Loading from checkpoint", self.load_checkpoint)
             ckpt = torch.load(self.load_checkpoint, map_location=self.device)
             if ckpt["stage"] == 1:
@@ -295,19 +293,14 @@ class TACTISTrainer(Trainer):
             cumm_marginal_logdet = 0.0  # Normalized
             cumm_copula_loss = 0.0  # Normalized
 
-            print(
-                "Total number of training batches:", self.training_num_batches_per_epoch
-            )
+            print("Total number of training batches:", self.training_num_batches_per_epoch)
 
             # training loop
             training_num_windows_seen = 0
             training_epoch_start_time = time.time()
             for batch_no, data_entry in enumerate(train_iter, start=0):
                 step = epoch_no * self.training_num_batches_per_epoch + batch_no
-                if (
-                    self.log_subparams_every != -1
-                    and step % self.log_subparams_every == 0
-                ):
+                if self.log_subparams_every != -1 and step % self.log_subparams_every == 0:
                     print("Iter:", batch_no, "/", self.training_num_batches_per_epoch)
 
                 optim.zero_grad()
@@ -322,10 +315,7 @@ class TACTISTrainer(Trainer):
                     net.model.marginal_logdet,
                     net.model.copula_loss,
                 )
-                loss = (
-                    copula_loss_weight * copula_loss
-                    - flow_loss_weight * marginal_logdet
-                )
+                loss = copula_loss_weight * copula_loss - flow_loss_weight * marginal_logdet
                 loss_avg = loss.mean()
                 # Backward pass
                 loss_avg.backward()
@@ -334,9 +324,7 @@ class TACTISTrainer(Trainer):
                 optim.step()
 
                 cumm_epoch_loss += loss.sum()
-                cumm_epoch_loss_unweighted += torch.sum(
-                    copula_loss - marginal_logdet
-                ).item()
+                cumm_epoch_loss_unweighted += torch.sum(copula_loss - marginal_logdet).item()
                 cumm_epoch_loss_unnormalized += torch.sum(
                     net.model.unnormalized_copula_loss - net.model.marginal_logdet
                 ).item()
@@ -352,9 +340,7 @@ class TACTISTrainer(Trainer):
 
             # Accumulate training time
             training_epoch_end_time = time.time()
-            total_training_only_time += (
-                training_epoch_end_time - training_epoch_start_time
-            )
+            total_training_only_time += training_epoch_end_time - training_epoch_start_time
 
             avg_epoch_loss = cumm_epoch_loss / training_num_windows_seen
             print("Epoch:", epoch_no, "Average training loss:", avg_epoch_loss)
@@ -364,12 +350,8 @@ class TACTISTrainer(Trainer):
             ####### VALIDATION #########
             print("Validation...")
             if validation_iter is None and validation_iter_args is not None:
-                print(
-                    "Creating a validation dataloader with a batch size of", batch_size
-                )
-                validation_iter = ValidationDataLoader(
-                    **validation_iter_args, batch_size=batch_size
-                )
+                print("Creating a validation dataloader with a batch size of", batch_size)
+                validation_iter = ValidationDataLoader(**validation_iter_args, batch_size=batch_size)
             validation_length = None
             net.eval()
             cumm_epoch_loss_val = 0.0
@@ -384,10 +366,7 @@ class TACTISTrainer(Trainer):
             validation_num_windows_seen = 0
             validation_num_batches_per_epoch = len(validation_iter)
             for batch_no, data_entry in enumerate(validation_iter, start=0):
-                if (
-                    self.log_subparams_every != -1
-                    and step % self.log_subparams_every == 0
-                ):
+                if self.log_subparams_every != -1 and step % self.log_subparams_every == 0:
                     print("Iter:", batch_no, "/", validation_num_batches_per_epoch)
                 inputs = [v.to(self.device) for v in data_entry.values()]
                 validation_num_windows_seen += len(inputs[0])
@@ -400,16 +379,11 @@ class TACTISTrainer(Trainer):
                         net.model.marginal_logdet,
                         net.model.copula_loss,
                     )
-                    loss = (
-                        copula_loss_weight * copula_loss
-                        - flow_loss_weight * marginal_logdet
-                    )
+                    loss = copula_loss_weight * copula_loss - flow_loss_weight * marginal_logdet
                     loss_avg = loss.mean()
 
                 cumm_epoch_loss_val += loss.sum()
-                cumm_epoch_loss_val_unweighted += torch.sum(
-                    copula_loss - marginal_logdet
-                ).item()
+                cumm_epoch_loss_val_unweighted += torch.sum(copula_loss - marginal_logdet).item()
                 cumm_epoch_loss_val_unnormalized += torch.sum(
                     net.model.unnormalized_copula_loss - net.model.marginal_logdet
                 ).item()
@@ -417,16 +391,11 @@ class TACTISTrainer(Trainer):
                 cumm_copula_loss_val += torch.sum(copula_loss).item()
 
             avg_epoch_loss_val = cumm_epoch_loss_val / validation_num_windows_seen
-            avg_epoch_loss_val_unweighted = (
-                cumm_epoch_loss_val_unweighted / validation_num_windows_seen
-            )
+            avg_epoch_loss_val_unweighted = cumm_epoch_loss_val_unweighted / validation_num_windows_seen
 
             print("Epoch:", epoch_no, "Average validation loss:", avg_epoch_loss_val)
 
-            if (
-                best_val_loss_unweighted == None
-                or avg_epoch_loss_val_unweighted < best_val_loss_unweighted
-            ):
+            if best_val_loss_unweighted == None or avg_epoch_loss_val_unweighted < best_val_loss_unweighted:
                 best_val_loss_unweighted = avg_epoch_loss_val_unweighted
                 best_epoch = epoch_no
                 epochs_since_best_epoch = 0
@@ -436,17 +405,12 @@ class TACTISTrainer(Trainer):
             print("Epochs since best epoch:", epochs_since_best_epoch)
 
             # If in stage 2, stop. If in stage 1, switch to stage 2 (taken care of in the )
-            if (
-                self.early_stopping_epochs != -1
-                and epochs_since_best_epoch == self.early_stopping_epochs
-            ):
+            if self.early_stopping_epochs != -1 and epochs_since_best_epoch == self.early_stopping_epochs:
                 if net.model.stage == 2:
                     print("Stopping criterion reached for stage 2. Stopping training.")
                     break
                 else:
-                    print(
-                        "Stopping criterion reached for stage 1. Shifting to stage 2."
-                    )
+                    print("Stopping criterion reached for stage 1. Shifting to stage 2.")
                     switch_to_stage_2 = True
 
             ####### VALIDATION #########

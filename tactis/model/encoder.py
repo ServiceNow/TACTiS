@@ -103,9 +103,7 @@ class Encoder(nn.Module):
 
         # Merge the series and time steps, since the PyTorch attention implementation only accept three-dimensional input,
         # and the attention is applied between all tokens, no matter their series or time step.
-        encoded = encoded.view(
-            num_batches, num_series * num_timesteps, self.embedding_dim
-        )
+        encoded = encoded.view(num_batches, num_series * num_timesteps, self.embedding_dim)
 
         attention_start_time = time.time()
 

@@ -31,9 +31,7 @@ class PositionalEncoding(nn.Module):
     Adapted from: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
     """
 
-    def __init__(
-        self, embedding_dim: int, dropout: float = 0.1, max_length: int = 5000
-    ):
+    def __init__(self, embedding_dim: int, dropout: float = 0.1, max_length: int = 5000):
         """
         Parameters:
         -----------
@@ -46,18 +44,13 @@ class PositionalEncoding(nn.Module):
         """
         super().__init__()
 
-        assert (
-            embedding_dim % 2 == 0
-        ), "PositionEncoding needs an even embedding dimension"
+        assert embedding_dim % 2 == 0, "PositionEncoding needs an even embedding dimension"
 
         self.dropout = nn.Dropout(p=dropout)
 
         pos_encoding = torch.zeros(max_length, embedding_dim)
         possible_pos = torch.arange(0, max_length, dtype=torch.float)[:, None]
-        factor = torch.exp(
-            torch.arange(0, embedding_dim, 2, dtype=torch.float)
-            * (-numpy.log(10000.0) / embedding_dim)
-        )
+        factor = torch.exp(torch.arange(0, embedding_dim, 2, dtype=torch.float) * (-numpy.log(10000.0) / embedding_dim))
 
         # Alternate between using sine and cosine
         pos_encoding[:, 0::2] = torch.sin(possible_pos * factor)
@@ -66,9 +59,7 @@ class PositionalEncoding(nn.Module):
         # Register as a buffer, to automatically be sent to another device if the model is sent there
         self.register_buffer("pos_encoding", pos_encoding)
 
-    def forward(
-        self, input_encoded: torch.Tensor, timesteps: torch.IntTensor
-    ) -> torch.Tensor:
+    def forward(self, input_encoded: torch.Tensor, timesteps: torch.IntTensor) -> torch.Tensor:
         """
         Parameters:
         -----------
@@ -258,11 +249,7 @@ class TACTiS(nn.Module):
 
         assert copula_decoder is not None, "Must select exactly one type of decoder"
 
-        assert (
-            not bagging_size
-        ) or bagging_size <= num_series, (
-            "Bagging size must not be above number of series"
-        )
+        assert (not bagging_size) or bagging_size <= num_series, "Bagging size must not be above number of series"
 
         data_normalization = data_normalization.lower()
         assert data_normalization in {"", "none", "standardization"}
@@ -316,9 +303,7 @@ class TACTiS(nn.Module):
         flow_dim = self.flow_encoder_embedding_dim
         if not self.skip_copula:
             copula_dim = self.copula_encoder_embedding_dim
-        self.flow_series_encoder = nn.Embedding(
-            num_embeddings=num_series, embedding_dim=self.flow_series_embedding_dim
-        )
+        self.flow_series_encoder = nn.Embedding(num_embeddings=num_series, embedding_dim=self.flow_series_embedding_dim)
         if not self.skip_copula:
             self.copula_series_encoder = nn.Embedding(
                 num_embeddings=num_series,
@@ -326,13 +311,9 @@ class TACTiS(nn.Module):
             )
 
         if positional_encoding is not None:
-            self.flow_time_encoding = PositionalEncoding(
-                flow_dim, **positional_encoding
-            )
+            self.flow_time_encoding = PositionalEncoding(flow_dim, **positional_encoding)
             if not self.skip_copula:
-                self.copula_time_encoding = PositionalEncoding(
-                    copula_dim, **positional_encoding
-                )
+                self.copula_time_encoding = PositionalEncoding(copula_dim, **positional_encoding)
         else:
             self.flow_time_encoding = None
             if not self.skip_copula:
@@ -341,9 +322,7 @@ class TACTiS(nn.Module):
         flow_elayers = nn.ModuleList([])
         for i in range(self.flow_input_encoder_layers):
             if i == 0:
-                flow_elayers.append(
-                    nn.Linear(self.flow_series_embedding_dim + 2, flow_dim)
-                )
+                flow_elayers.append(nn.Linear(self.flow_series_embedding_dim + 2, flow_dim))
             else:
                 flow_elayers.append(nn.Linear(flow_dim, flow_dim))
             flow_elayers.append(nn.ReLU())
@@ -384,14 +363,10 @@ class TACTiS(nn.Module):
         self.skip_copula = False
         if self.copula_encoder_args:
             self.copula_encoder = Encoder(**self.copula_encoder_args)
-            self.decoder.attentional_copula_args[
-                "input_dim"
-            ] = self.copula_encoder.embedding_dim
+            self.decoder.attentional_copula_args["input_dim"] = self.copula_encoder.embedding_dim
         elif self.copula_temporal_encoder_args:
             self.copula_encoder = TemporalEncoder(**self.copula_temporal_encoder_args)
-            self.decoder.attentional_copula_args[
-                "input_dim"
-            ] = self.copula_encoder.embedding_dim
+            self.decoder.attentional_copula_args["input_dim"] = self.copula_encoder.embedding_dim
         self.copula_encoder_embedding_dim = self.copula_encoder.embedding_dim
         copula_dim = self.copula_encoder_embedding_dim
         self.copula_series_encoder = nn.Embedding(
@@ -399,9 +374,7 @@ class TACTiS(nn.Module):
             embedding_dim=self.copula_series_embedding_dim,
         )
         if self.positional_encoding:
-            self.copula_time_encoding = PositionalEncoding(
-                copula_dim, **self.positional_encoding
-            )
+            self.copula_time_encoding = PositionalEncoding(copula_dim, **self.positional_encoding)
 
         copula_elayers = nn.ModuleList([])
         for i in range(self.copula_input_encoder_layers):
@@ -469,26 +442,14 @@ class TACTiS(nn.Module):
         # Make sure to have the exact same bag for all series
         bags = [torch.randperm(num_series)[0:bagging_size] for _ in range(num_batches)]
 
-        hist_time = torch.stack(
-            [hist_time[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
-        hist_value = torch.stack(
-            [hist_value[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
-        pred_time = torch.stack(
-            [pred_time[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
-        pred_value = torch.stack(
-            [pred_value[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
+        hist_time = torch.stack([hist_time[i, bags[i], :] for i in range(num_batches)], dim=0)
+        hist_value = torch.stack([hist_value[i, bags[i], :] for i in range(num_batches)], dim=0)
+        pred_time = torch.stack([pred_time[i, bags[i], :] for i in range(num_batches)], dim=0)
+        pred_value = torch.stack([pred_value[i, bags[i], :] for i in range(num_batches)], dim=0)
 
-        flow_series_emb = torch.stack(
-            [flow_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
+        flow_series_emb = torch.stack([flow_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0)
         if type(copula_series_emb) != type(None):
-            copula_series_emb = torch.stack(
-                [copula_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0
-            )
+            copula_series_emb = torch.stack([copula_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0)
 
         return (
             hist_time,
@@ -542,34 +503,21 @@ class TACTiS(nn.Module):
 
         if permute_series:
             bags = [
-                torch.Tensor(series_to_keep)[torch.randperm(len(series_to_keep))].long()
-                for _ in range(num_batches)
+                torch.Tensor(series_to_keep)[torch.randperm(len(series_to_keep))].long() for _ in range(num_batches)
             ]
         else:
             bags = [torch.Tensor(series_to_keep).long() for _ in range(num_batches)]
 
-        hist_time = torch.stack(
-            [hist_time[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
-        hist_value = torch.stack(
-            [hist_value[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
-        pred_time = torch.stack(
-            [pred_time[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
+        hist_time = torch.stack([hist_time[i, bags[i], :] for i in range(num_batches)], dim=0)
+        hist_value = torch.stack([hist_value[i, bags[i], :] for i in range(num_batches)], dim=0)
+        pred_time = torch.stack([pred_time[i, bags[i], :] for i in range(num_batches)], dim=0)
 
-        flow_series_emb = torch.stack(
-            [flow_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0
-        )
+        flow_series_emb = torch.stack([flow_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0)
         if type(copula_series_emb) != type(None):
-            copula_series_emb = torch.stack(
-                [copula_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0
-            )
+            copula_series_emb = torch.stack([copula_series_emb[i, bags[i], :] for i in range(num_batches)], dim=0)
 
         if type(pred_value) != type(None):
-            pred_value = torch.stack(
-                [pred_value[i, bags[i], :] for i in range(num_batches)], dim=0
-            )
+            pred_value = torch.stack([pred_value[i, bags[i], :] for i in range(num_batches)], dim=0)
             return (
                 hist_time,
                 hist_value,
@@ -619,18 +567,12 @@ class TACTiS(nn.Module):
 
         # Gets the embedding for each series [batch, series, embedding size]
         # Expand over batches to be compatible with the bagging procedure, which select different series for each batch
-        flow_series_emb = self.flow_series_encoder(
-            torch.arange(num_series, device=device)
-        )
+        flow_series_emb = self.flow_series_encoder(torch.arange(num_series, device=device))
         if not self.skip_copula:
-            copula_series_emb = self.copula_series_encoder(
-                torch.arange(num_series, device=device)
-            )
+            copula_series_emb = self.copula_series_encoder(torch.arange(num_series, device=device))
         flow_series_emb = flow_series_emb[None, :, :].expand(num_batches, -1, -1)
         if not self.skip_copula:
-            copula_series_emb = copula_series_emb[None, :, :].expand(
-                num_batches, -1, -1
-            )
+            copula_series_emb = copula_series_emb[None, :, :].expand(num_batches, -1, -1)
 
         # Make sure that both time tensors are in the correct format
         if len(hist_time.shape) == 2:
@@ -638,25 +580,16 @@ class TACTiS(nn.Module):
         if len(pred_time.shape) == 2:
             pred_time = pred_time[:, None, :]
         if hist_time.shape[1] == 1:
-            hist_time = hist_time.expand(
-                -1, num_series, -1
-            )  # the shape will be [batch, series, num_hist_timesteps]
+            hist_time = hist_time.expand(-1, num_series, -1)  # the shape will be [batch, series, num_hist_timesteps]
         if pred_time.shape[1] == 1:
-            pred_time = pred_time.expand(
-                -1, num_series, -1
-            )  # the shape will be [batch, series, num_pred_timesteps]
+            pred_time = pred_time.expand(-1, num_series, -1)  # the shape will be [batch, series, num_pred_timesteps]
 
         # If the setup is interpolation, fix the length on each side of the interpolated window
         if self.experiment_mode == "interpolation":
             total_observed_timesteps_on_each_side = num_hist_timesteps / 2
-            if (
-                int(total_observed_timesteps_on_each_side)
-                != total_observed_timesteps_on_each_side
-            ):
+            if int(total_observed_timesteps_on_each_side) != total_observed_timesteps_on_each_side:
                 raise Exception("Odd history lengths haven't been handled for now")
-            total_observed_timesteps_on_each_side = int(
-                total_observed_timesteps_on_each_side
-            )
+            total_observed_timesteps_on_each_side = int(total_observed_timesteps_on_each_side)
 
         # Perform bagging
         if self.bagging_size:
@@ -730,8 +663,7 @@ class TACTiS(nn.Module):
             missing_values = all_values[
                 :,
                 :,
-                total_observed_timesteps_on_each_side : total_observed_timesteps_on_each_side
-                + num_pred_timesteps,
+                total_observed_timesteps_on_each_side : total_observed_timesteps_on_each_side + num_pred_timesteps,
             ]
             normalizer = self.data_normalization(observed_values)
             observed_values = normalizer.normalize(observed_values)
@@ -779,12 +711,8 @@ class TACTiS(nn.Module):
             hist_encoded_flow = torch.cat(
                 [
                     hist_value[:, :, :, None],
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_hist_timesteps, -1
-                    ),
-                    torch.ones(
-                        num_batches, num_series, num_hist_timesteps, 1, device=device
-                    ),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
+                    torch.ones(num_batches, num_series, num_hist_timesteps, 1, device=device),
                 ],
                 dim=3,
             )  # Shape: [batch, num_series, num_hist_timesteps, embedding_size+2]
@@ -792,9 +720,7 @@ class TACTiS(nn.Module):
                 hist_encoded_copula = torch.cat(
                     [
                         hist_value[:, :, :, None],
-                        copula_series_emb[:, :, None, :].expand(
-                            num_batches, -1, num_hist_timesteps, -1
-                        ),
+                        copula_series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
                         torch.ones(
                             num_batches,
                             num_series,
@@ -808,15 +734,9 @@ class TACTiS(nn.Module):
             # For the prediction embedding, replace the values by zeros, since they won't be available during sampling
             pred_encoded_flow = torch.cat(
                 [
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_pred_timesteps, -1
-                    ),
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
                 ],
                 dim=3,
             )  # Shape: [batch, num_series, num_hist_timesteps, embedding_size+2]. Note that we are also leaving out the values as zeros
@@ -830,9 +750,7 @@ class TACTiS(nn.Module):
                             1,
                             device=device,
                         ),
-                        copula_series_emb[:, :, None, :].expand(
-                            num_batches, -1, num_pred_timesteps, -1
-                        ),
+                        copula_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
                         torch.zeros(
                             num_batches,
                             num_series,
@@ -861,18 +779,14 @@ class TACTiS(nn.Module):
             if self.input_encoding_normalization:
                 flow_encoded = flow_encoded * self.flow_encoder_embedding_dim**0.5
                 if not self.skip_copula:
-                    copula_encoded = (
-                        copula_encoded * self.copula_encoder_embedding_dim**0.5
-                    )
+                    copula_encoded = copula_encoded * self.copula_encoder_embedding_dim**0.5
 
             # Add the time encoding here after the input encoding to be compatible with how positional encoding is used.
             # Adjustments may be required for other ways to encode time.
             timesteps = torch.cat([hist_time, pred_time], dim=2)
             flow_encoded = self.flow_time_encoding(flow_encoded, timesteps.to(int))
             if not self.skip_copula:
-                copula_encoded = self.copula_time_encoding(
-                    copula_encoded, timesteps.to(int)
-                )
+                copula_encoded = self.copula_time_encoding(copula_encoded, timesteps.to(int))
 
             flow_encoded = self.flow_encoder.forward(
                 flow_encoded
@@ -886,12 +800,8 @@ class TACTiS(nn.Module):
             hist_encoded_flow = torch.cat(
                 [
                     observed_values[:, :, :, None],
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_hist_timesteps, -1
-                    ),
-                    torch.ones(
-                        num_batches, num_series, num_hist_timesteps, 1, device=device
-                    ),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
+                    torch.ones(num_batches, num_series, num_hist_timesteps, 1, device=device),
                 ],
                 dim=3,
             )  # Shape: [batch, num_series, num_hist_timesteps, embedding_size+2]
@@ -899,9 +809,7 @@ class TACTiS(nn.Module):
                 hist_encoded_copula = torch.cat(
                     [
                         observed_values[:, :, :, None],
-                        copula_series_emb[:, :, None, :].expand(
-                            num_batches, -1, num_hist_timesteps, -1
-                        ),
+                        copula_series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
                         torch.ones(
                             num_batches,
                             num_series,
@@ -915,15 +823,9 @@ class TACTiS(nn.Module):
             # For the prediction embedding, replace the values by zeros, since they won't be available during sampling
             pred_encoded_flow = torch.cat(
                 [
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_pred_timesteps, -1
-                    ),
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
                 ],
                 dim=3,
             )  # Shape: [batch, num_series, num_hist_timesteps, embedding_size+2]. Note that we are also leaving out the values as zeros
@@ -937,9 +839,7 @@ class TACTiS(nn.Module):
                             1,
                             device=device,
                         ),
-                        copula_series_emb[:, :, None, :].expand(
-                            num_batches, -1, num_pred_timesteps, -1
-                        ),
+                        copula_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
                         torch.zeros(
                             num_batches,
                             num_series,
@@ -999,17 +899,13 @@ class TACTiS(nn.Module):
             if self.input_encoding_normalization:
                 flow_encoded = flow_encoded * self.flow_encoder_embedding_dim**0.5
                 if not self.skip_copula:
-                    copula_encoded = (
-                        copula_encoded * self.copula_encoder_embedding_dim**0.5
-                    )
+                    copula_encoded = copula_encoded * self.copula_encoder_embedding_dim**0.5
             # Add the time encoding here after the input encoding to be compatible with how positional encoding is used.
             # Adjustments may be required for other ways to encode time.
             timesteps = torch.cat([hist_time, pred_time], dim=2)
             flow_encoded = self.flow_time_encoding(flow_encoded, timesteps.to(int))
             if not self.skip_copula:
-                copula_encoded = self.copula_time_encoding(
-                    copula_encoded, timesteps.to(int)
-                )
+                copula_encoded = self.copula_time_encoding(copula_encoded, timesteps.to(int))
 
             flow_encoded = self.flow_encoder.forward(
                 flow_encoded
@@ -1085,18 +981,12 @@ class TACTiS(nn.Module):
         # Expand over batches to be compatible with the bagging procedure, which select different series for each batch
         copula_series_emb = None
 
-        flow_series_emb = self.flow_series_encoder(
-            torch.arange(num_series, device=device)
-        )
+        flow_series_emb = self.flow_series_encoder(torch.arange(num_series, device=device))
         if not self.skip_copula:
-            copula_series_emb = self.copula_series_encoder(
-                torch.arange(num_series, device=device)
-            )
+            copula_series_emb = self.copula_series_encoder(torch.arange(num_series, device=device))
         flow_series_emb = flow_series_emb[None, :, :].expand(num_batches, -1, -1)
         if not self.skip_copula:
-            copula_series_emb = copula_series_emb[None, :, :].expand(
-                num_batches, -1, -1
-            )
+            copula_series_emb = copula_series_emb[None, :, :].expand(num_batches, -1, -1)
 
         # Make sure that both time tensors are in the correct format
         if len(hist_time.shape) == 2:
@@ -1112,14 +1002,9 @@ class TACTiS(nn.Module):
         if self.experiment_mode == "interpolation":
             actual_history_length = num_hist_timesteps - num_pred_timesteps
             total_observed_timesteps_on_each_side = actual_history_length / 2
-            if (
-                int(total_observed_timesteps_on_each_side)
-                != total_observed_timesteps_on_each_side
-            ):
+            if int(total_observed_timesteps_on_each_side) != total_observed_timesteps_on_each_side:
                 raise Exception("Odd history lengths haven't been handled for now")
-            total_observed_timesteps_on_each_side = int(
-                total_observed_timesteps_on_each_side
-            )
+            total_observed_timesteps_on_each_side = int(total_observed_timesteps_on_each_side)
 
         # If we are performing interpolation, we need to modify hist_time and pred_time to reflect the mask
         # We assume pred_time is invalid here since hist_time contains the entire window
@@ -1173,9 +1058,7 @@ class TACTiS(nn.Module):
             true_value = torch.cat(
                 [
                     hist_value,
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, device=device
-                    ),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, device=device),
                 ],
                 dim=2,
             )
@@ -1213,9 +1096,7 @@ class TACTiS(nn.Module):
             true_value = torch.cat(
                 [
                     observed_values[:, :, :total_observed_timesteps_on_each_side],
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, device=device
-                    ),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, device=device),
                     observed_values[:, :, -total_observed_timesteps_on_each_side:],
                 ],
                 dim=2,
@@ -1225,12 +1106,8 @@ class TACTiS(nn.Module):
             hist_encoded_flow = torch.cat(
                 [
                     hist_value[:, :, :, None],
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_hist_timesteps, -1
-                    ),
-                    torch.ones(
-                        num_batches, num_series, num_hist_timesteps, 1, device=device
-                    ),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
+                    torch.ones(num_batches, num_series, num_hist_timesteps, 1, device=device),
                 ],
                 dim=3,
             )  # Shape: [batch, num_series, num_hist_timesteps, embedding_size+2]
@@ -1238,9 +1115,7 @@ class TACTiS(nn.Module):
                 hist_encoded_copula = torch.cat(
                     [
                         hist_value[:, :, :, None],
-                        copula_series_emb[:, :, None, :].expand(
-                            num_batches, -1, num_hist_timesteps, -1
-                        ),
+                        copula_series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps, -1),
                         torch.ones(
                             num_batches,
                             num_series,
@@ -1254,15 +1129,9 @@ class TACTiS(nn.Module):
             # For the prediction embedding, replace the values by zeros, since they won't be available during sampling
             pred_encoded_flow = torch.cat(
                 [
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_pred_timesteps, -1
-                    ),
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
                 ],
                 dim=3,
             )  # Shape: [batch, num_series, num_hist_timesteps, embedding_size+2]. Note that we are also leaving out the values as zeros
@@ -1276,9 +1145,7 @@ class TACTiS(nn.Module):
                             1,
                             device=device,
                         ),
-                        copula_series_emb[:, :, None, :].expand(
-                            num_batches, -1, num_pred_timesteps, -1
-                        ),
+                        copula_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
                         torch.zeros(
                             num_batches,
                             num_series,
@@ -1307,18 +1174,14 @@ class TACTiS(nn.Module):
             if self.input_encoding_normalization:
                 flow_encoded = flow_encoded * self.flow_encoder_embedding_dim**0.5
                 if not self.skip_copula:
-                    copula_encoded = (
-                        copula_encoded * self.copula_encoder_embedding_dim**0.5
-                    )
+                    copula_encoded = copula_encoded * self.copula_encoder_embedding_dim**0.5
 
             # Add the time encoding here after the input encoding to be compatible with how positional encoding is used.
             # Adjustments may be required for other ways to encode time.
             timesteps = torch.cat([hist_time, pred_time], dim=2)
             flow_encoded = self.flow_time_encoding(flow_encoded, timesteps.to(int))
             if not self.skip_copula:
-                copula_encoded = self.copula_time_encoding(
-                    copula_encoded, timesteps.to(int)
-                )
+                copula_encoded = self.copula_time_encoding(copula_encoded, timesteps.to(int))
 
             flow_encoded = self.flow_encoder.forward(
                 flow_encoded
@@ -1332,9 +1195,7 @@ class TACTiS(nn.Module):
             hist_encoded_flow = torch.cat(
                 [
                     observed_values[:, :, :, None],
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_hist_timesteps - num_pred_timesteps, -1
-                    ),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_hist_timesteps - num_pred_timesteps, -1),
                     torch.ones(
                         num_batches,
                         num_series,
@@ -1365,15 +1226,9 @@ class TACTiS(nn.Module):
             # For the prediction embedding, replace the values by zeros, since they won't be available during sampling
             pred_encoded_flow = torch.cat(
                 [
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
-                    flow_series_emb[:, :, None, :].expand(
-                        num_batches, -1, num_pred_timesteps, -1
-                    ),
-                    torch.zeros(
-                        num_batches, num_series, num_pred_timesteps, 1, device=device
-                    ),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
+                    flow_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
+                    torch.zeros(num_batches, num_series, num_pred_timesteps, 1, device=device),
                 ],
                 dim=3,
             )  # Shape: [batch, num_series, num_hist_timesteps, embedding_size+2]. Note that we are also leaving out the values as zeros
@@ -1387,9 +1242,7 @@ class TACTiS(nn.Module):
                             1,
                             device=device,
                         ),
-                        copula_series_emb[:, :, None, :].expand(
-                            num_batches, -1, num_pred_timesteps, -1
-                        ),
+                        copula_series_emb[:, :, None, :].expand(num_batches, -1, num_pred_timesteps, -1),
                         torch.zeros(
                             num_batches,
                             num_series,
@@ -1448,17 +1301,13 @@ class TACTiS(nn.Module):
             if self.input_encoding_normalization:
                 flow_encoded = flow_encoded * self.flow_encoder_embedding_dim**0.5
                 if not self.skip_copula:
-                    copula_encoded = (
-                        copula_encoded * self.copula_encoder_embedding_dim**0.5
-                    )
+                    copula_encoded = copula_encoded * self.copula_encoder_embedding_dim**0.5
             # Add the time encoding here after the input encoding to be compatible with how positional encoding is used.
             # Adjustments may be required for other ways to encode time.
             timesteps = torch.cat([hist_time, pred_time], dim=2)
             flow_encoded = self.flow_time_encoding(flow_encoded, timesteps.to(int))
             if not self.skip_copula:
-                copula_encoded = self.copula_time_encoding(
-                    copula_encoded, timesteps.to(int)
-                )
+                copula_encoded = self.copula_time_encoding(copula_encoded, timesteps.to(int))
 
             flow_encoded = self.flow_encoder.forward(
                 flow_encoded

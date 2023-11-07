@@ -51,9 +51,7 @@ class DummyLogger:
         return
 
 
-def log_parameter_difference(
-    logger, initial_model, current_model, step=None, average_only=False
-):
+def log_parameter_difference(logger, initial_model, current_model, step=None, average_only=False):
     initial_model_state_dict = initial_model.state_dict()
 
     for name, param in current_model.named_parameters():
@@ -61,21 +59,14 @@ def log_parameter_difference(
             logger.log(
                 {
                     "param_diff/"
-                    + name: wandb.Histogram(
-                        torch.abs(
-                            initial_model_state_dict[name].flatten()
-                            - param.data.flatten()
-                        )
-                    ),
+                    + name: wandb.Histogram(torch.abs(initial_model_state_dict[name].flatten() - param.data.flatten())),
                     "step": step,
                 }
             )
         logger.log(
             {
                 "average_param_diff/"
-                + name: torch.abs(
-                    initial_model_state_dict[name].flatten() - param.data.flatten()
-                ).mean(),
+                + name: torch.abs(initial_model_state_dict[name].flatten() - param.data.flatten()).mean(),
                 "step": step,
             }
         )
@@ -90,17 +81,13 @@ def log_gradients(logger, model, objective_name="", step=None, average_only=Fals
             if not average_only:
                 logger.log(
                     {
-                        objective_name
-                        + "gradients/"
-                        + name: wandb.Histogram(param.grad.flatten()),
+                        objective_name + "gradients/" + name: wandb.Histogram(param.grad.flatten()),
                         "step": step,
                     }
                 )
             logger.log(
                 {
-                    objective_name
-                    + "average-gradients/"
-                    + name: param.grad.flatten().mean(),
+                    objective_name + "average-gradients/" + name: param.grad.flatten().mean(),
                     "step": step,
                 }
             )
@@ -115,9 +102,7 @@ def save_checkpoint(state, checkpoint_dir, filename):
 
 def get_correlation_as_pil(correlation, filepath):
     plt.figure()
-    svm = sns.heatmap(
-        correlation, robust=True, center=0, xticklabels=False, yticklabels=False
-    )
+    svm = sns.heatmap(correlation, robust=True, center=0, xticklabels=False, yticklabels=False)
     filename = os.path.join(filepath)
     figure = svm.get_figure()
     figure.savefig(filename, bbox_inches="tight")
@@ -162,19 +147,11 @@ def plot_matrices(targets, forecasts, wandb_log_prefix, epoch):
                     corrcoef_v.shape,
                 )
 
-        corrcoef_v_first_timestep = corrcoef_v_first_timestep + np.corrcoef(
-            samples[:, 0, :].transpose()
-        )
-        corrcoef_v_last_timestep = corrcoef_v_last_timestep + np.corrcoef(
-            samples[:, -1, :].transpose()
-        )
+        corrcoef_v_first_timestep = corrcoef_v_first_timestep + np.corrcoef(samples[:, 0, :].transpose())
+        corrcoef_v_last_timestep = corrcoef_v_last_timestep + np.corrcoef(samples[:, -1, :].transpose())
 
-        corrcoef_ts_first_variable = corrcoef_ts_first_variable + np.corrcoef(
-            samples[:, :, 0].transpose()
-        )
-        corrcoef_ts_last_variable = corrcoef_ts_last_variable + np.corrcoef(
-            samples[:, :, -1].transpose()
-        )
+        corrcoef_ts_first_variable = corrcoef_ts_first_variable + np.corrcoef(samples[:, :, 0].transpose())
+        corrcoef_ts_last_variable = corrcoef_ts_last_variable + np.corrcoef(samples[:, :, -1].transpose())
 
     corrcoef_ts /= len(targets) * 107
     corrcoef_v /= len(targets) * 12
@@ -207,58 +184,44 @@ def plot_matrices(targets, forecasts, wandb_log_prefix, epoch):
 
     corrcoef_v_first_timestep_fig = get_correlation_as_pil(
         corrcoef_v_first_timestep,
-        os.path.join(
-            wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_v_first_timestep.png"
-        ),
+        os.path.join(wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_v_first_timestep.png"),
     )
     wandb.log(
         {
-            wandb_log_prefix
-            + "-corrcoef/v_first_timestep": wandb.Image(corrcoef_v_first_timestep_fig),
+            wandb_log_prefix + "-corrcoef/v_first_timestep": wandb.Image(corrcoef_v_first_timestep_fig),
             wandb_log_prefix + "-eval/" + wandb_log_prefix + "-eval-epoch": epoch,
         }
     )
 
     corrcoef_v_last_timestep_fig = get_correlation_as_pil(
         corrcoef_v_last_timestep,
-        os.path.join(
-            wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_v_last_timestep.png"
-        ),
+        os.path.join(wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_v_last_timestep.png"),
     )
     wandb.log(
         {
-            wandb_log_prefix
-            + "-corrcoef/v_last_timestep": wandb.Image(corrcoef_v_last_timestep_fig),
+            wandb_log_prefix + "-corrcoef/v_last_timestep": wandb.Image(corrcoef_v_last_timestep_fig),
             wandb_log_prefix + "-eval/" + wandb_log_prefix + "-eval-epoch": epoch,
         }
     )
 
     corrcoef_ts_first_variable_fig = get_correlation_as_pil(
         corrcoef_ts_first_variable,
-        os.path.join(
-            wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_ts_first_variable.png"
-        ),
+        os.path.join(wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_ts_first_variable.png"),
     )
     wandb.log(
         {
-            wandb_log_prefix
-            + "-corrcoef/ts_first_variable": wandb.Image(
-                corrcoef_ts_first_variable_fig
-            ),
+            wandb_log_prefix + "-corrcoef/ts_first_variable": wandb.Image(corrcoef_ts_first_variable_fig),
             wandb_log_prefix + "-eval/" + wandb_log_prefix + "-eval-epoch": epoch,
         }
     )
 
     corrcoef_ts_last_variable_fig = get_correlation_as_pil(
         corrcoef_ts_last_variable,
-        os.path.join(
-            wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_ts_last_variable.png"
-        ),
+        os.path.join(wandb.run.dir, "epoch_" + str(epoch) + "corrcoef_ts_last_variable.png"),
     )
     wandb.log(
         {
-            wandb_log_prefix
-            + "-corrcoef/ts_last_variable": wandb.Image(corrcoef_ts_last_variable_fig),
+            wandb_log_prefix + "-corrcoef/ts_last_variable": wandb.Image(corrcoef_ts_last_variable_fig),
             wandb_log_prefix + "-eval/" + wandb_log_prefix + "-eval-epoch": epoch,
         }
     )
@@ -325,13 +288,7 @@ def plot_single_series(
 
     filename = os.path.join(
         wandb.run.dir,
-        "epoch_"
-        + str(epoch)
-        + "_"
-        + wandb_log_prefix
-        + "_"
-        + wandb_log_suffix
-        + ".png",
+        "epoch_" + str(epoch) + "_" + wandb_log_prefix + "_" + wandb_log_suffix + ".png",
     )
     plt.savefig(filename, bbox_inches="tight", pad_inches=0)
     image = Image.open(filename)

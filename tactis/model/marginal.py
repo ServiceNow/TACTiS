@@ -54,9 +54,7 @@ class DSFMarginal(nn.Module):
         self.flow_layers = flow_layers
         self.flow_hid_dim = flow_hid_dim
 
-        self.marginal_flow = DeepSigmoidFlow(
-            n_layers=self.flow_layers, hidden_dim=self.flow_hid_dim
-        )
+        self.marginal_flow = DeepSigmoidFlow(n_layers=self.flow_layers, hidden_dim=self.flow_hid_dim)
 
         elayers = [nn.Linear(self.context_dim, self.mlp_dim), nn.ReLU()]
         for _ in range(1, self.mlp_layers):
@@ -64,9 +62,7 @@ class DSFMarginal(nn.Module):
         elayers += [nn.Linear(self.mlp_dim, self.marginal_flow.total_params_length)]
         self.marginal_conditioner = nn.Sequential(*elayers)
 
-    def forward_logdet(
-        self, context: torch.Tensor, x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward_logdet(self, context: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute the cumulative density function of a marginal conditioned using the given context, for the given value of x.
         Also returns the logarithm of the derivative of this transformation.

@@ -73,9 +73,7 @@ class SuppressOutput:
         sys.stderr = self._stderr_bkp
 
 
-def _compute_energy_score(
-    target_data: np.array, samples: np.array, num_samples: int, beta: float
-) -> np.float32:
+def _compute_energy_score(target_data: np.array, samples: np.array, num_samples: int, beta: float) -> np.float32:
     """
     Compute the unnormalized energy score for a single forecast.
 
@@ -145,9 +143,7 @@ def compute_energy_score(
         target_data = target.iloc[-forecast.prediction_length :].to_numpy()
         samples = forecast.samples
 
-        cumulative_score += _compute_energy_score(
-            target_data, samples, forecast.num_samples, beta
-        )
+        cumulative_score += _compute_energy_score(target_data, samples, forecast.num_samples, beta)
         num_forecasts += 1
     return cumulative_score / num_forecasts
 
@@ -218,9 +214,7 @@ def compute_validation_metrics(
         except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
             print(error)
             if predictor.batch_size == 1:
-                print(
-                    "Batch is already at the minimum. Cannot reduce further. Exiting..."
-                )
+                print("Batch is already at the minimum. Cannot reduce further. Exiting...")
                 return None
             else:
                 print("Caught OutOfMemoryError. Reducing batch size...")
@@ -408,9 +402,7 @@ def compute_validation_metrics_interpolation(
         except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
             print(error)
             if batch_size == 1:
-                print(
-                    "Batch is already at the minimum. Cannot reduce further. Exiting..."
-                )
+                print("Batch is already at the minimum. Cannot reduce further. Exiting...")
                 return None
             else:
                 print("Caught OutOfMemoryError. Reducing batch size...")
@@ -433,9 +425,7 @@ def compute_validation_metrics_interpolation(
     # TODO: Verify this manually
     interpolation_segment_targets = []
     interpolation_start_dates = []
-    interpolation_window_start = (
-        window_length - prediction_length - (history_length // 2)
-    )
+    interpolation_window_start = window_length - prediction_length - (history_length // 2)
     interpolation_window_end = window_length - (history_length // 2)
     end_ts = interpolation_window_end
     for k, target in enumerate(targets):
@@ -444,9 +434,7 @@ def compute_validation_metrics_interpolation(
         interpolation_start_dates.append(target.index[interpolation_window_start + k])
         forecasts[k].start_date = target.index[interpolation_window_start + k]
 
-    print(
-        "#Forecasts:", len(forecasts), "#Targets:", len(interpolation_segment_targets)
-    )
+    print("#Forecasts:", len(forecasts), "#Targets:", len(interpolation_segment_targets))
     print("Shape of forecasts[0].samples", forecasts[0].samples.shape)
     predicting_end_time = time.time()
     print(

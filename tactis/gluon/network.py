@@ -64,9 +64,9 @@ class TACTiSTrainingNetwork(nn.Module):
         pred_value = future_target_norm.transpose(1, 2)
 
         # For the time steps, we take for granted that the data is aligned with a constant frequency
-        hist_time = torch.arange(
-            0, hist_value.shape[2], dtype=int, device=hist_value.device
-        )[None, :].expand(hist_value.shape[0], -1)
+        hist_time = torch.arange(0, hist_value.shape[2], dtype=int, device=hist_value.device)[None, :].expand(
+            hist_value.shape[0], -1
+        )
         pred_time = torch.arange(
             hist_value.shape[2],
             hist_value.shape[2] + pred_value.shape[2],
@@ -124,9 +124,9 @@ class TACTiSPredictionNetwork(nn.Module):
         hist_value = past_target_norm.transpose(1, 2)
 
         # For the time steps, we take for granted that the data is aligned with a constant frequency
-        hist_time = torch.arange(
-            0, hist_value.shape[2], dtype=int, device=hist_value.device
-        )[None, :].expand(hist_value.shape[0], -1)
+        hist_time = torch.arange(0, hist_value.shape[2], dtype=int, device=hist_value.device)[None, :].expand(
+            hist_value.shape[0], -1
+        )
         pred_time = torch.arange(
             hist_value.shape[2],
             hist_value.shape[2] + self.prediction_length,
@@ -190,9 +190,9 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
         hist_value = past_target_norm.transpose(1, 2)
 
         # For the time steps, we take for granted that the data is aligned with a constant frequency
-        hist_time = torch.arange(
-            0, hist_value.shape[2], dtype=int, device=hist_value.device
-        )[None, :].expand(hist_value.shape[0], -1)
+        hist_time = torch.arange(0, hist_value.shape[2], dtype=int, device=hist_value.device)[None, :].expand(
+            hist_value.shape[0], -1
+        )
         pred_time = torch.arange(
             hist_value.shape[2],
             hist_value.shape[2] + self.prediction_length,
@@ -209,13 +209,9 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
 
         # TODO: To verify this
         total_length = samples.shape[2]
-        interpolation_window_start = (
-            total_length - self.prediction_length - (self.history_length // 2)
-        )
+        interpolation_window_start = total_length - self.prediction_length - (self.history_length // 2)
         interpolation_window_end = total_length - (self.history_length // 2)
 
         # The model decoder returns both the observed and sampled values, so removed the observed ones.
         # Also, reorder from [batch, series, time steps, samples] to GluonTS expected [batch, samples, time steps, series].
-        return samples[
-            :, :, interpolation_window_start:interpolation_window_end, :
-        ].permute((0, 3, 2, 1))
+        return samples[:, :, interpolation_window_start:interpolation_window_end, :].permute((0, 3, 2, 1))

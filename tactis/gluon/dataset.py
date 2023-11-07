@@ -53,9 +53,7 @@ _DATA_BACKTEST_DEF = {
             pd.Timestamp(year=2014, month=12, day=15),
             pd.Timestamp(year=2014, month=12, day=22),
         ],
-        "end_date": pd.Timestamp(
-            year=2014, month=12, day=29
-        ),  # Last Monday before end of data
+        "end_date": pd.Timestamp(year=2014, month=12, day=29),  # Last Monday before end of data
     },
     "kdd_cup_2018_without_missing": {  # 270 series, 48 prediction length
         "train_dates": [
@@ -66,9 +64,7 @@ _DATA_BACKTEST_DEF = {
             pd.Timestamp(year=2018, month=2, day=26),
             pd.Timestamp(year=2018, month=3, day=12),
         ],
-        "end_date": pd.Timestamp(
-            year=2018, month=3, day=26
-        ),  # Last Monday before end of data
+        "end_date": pd.Timestamp(year=2018, month=3, day=26),  # Last Monday before end of data
     },
     "traffic": {  # 862 series, 24 prediction length
         "train_dates": [
@@ -79,9 +75,7 @@ _DATA_BACKTEST_DEF = {
             pd.Timestamp(year=2016, month=12, day=12),
             pd.Timestamp(year=2016, month=12, day=19),
         ],
-        "end_date": pd.Timestamp(
-            year=2016, month=12, day=26
-        ),  # Last Monday before end of data
+        "end_date": pd.Timestamp(year=2016, month=12, day=26),  # Last Monday before end of data
     },
     "fred_md": {  # 107 series, 12 prediction length
         "train_dates": [
@@ -92,9 +86,7 @@ _DATA_BACKTEST_DEF = {
             pd.Timestamp(year=2017, month=1, day=30),
             pd.Timestamp(year=2018, month=1, day=30),
         ],
-        "end_date": pd.Timestamp(
-            year=2019, month=1, day=30
-        ),  # Last January before end of data
+        "end_date": pd.Timestamp(year=2019, month=1, day=30),  # Last January before end of data
     },
 }
 
@@ -119,9 +111,7 @@ _DATA_PREBACKTEST_DEF = {
             pd.Timestamp(year=2018, month=2, day=12),
             pd.Timestamp(year=2018, month=2, day=26),
         ],
-        "end_date": pd.Timestamp(
-            year=2018, month=3, day=12
-        ),  # Last Monday before end of data
+        "end_date": pd.Timestamp(year=2018, month=3, day=12),  # Last Monday before end of data
     },
     "fred_md": {  # 107 series, 12 prediction length
         "train_dates": [
@@ -132,9 +122,7 @@ _DATA_PREBACKTEST_DEF = {
             pd.Timestamp(year=2016, month=1, day=30),
             pd.Timestamp(year=2017, month=1, day=30),
         ],
-        "end_date": pd.Timestamp(
-            year=2018, month=1, day=30
-        ),  # Last January before end of data
+        "end_date": pd.Timestamp(year=2018, month=1, day=30),  # Last January before end of data
     },
     "electricity_hourly": {  # 107 series, 12 prediction length
         "train_dates": [
@@ -145,9 +133,7 @@ _DATA_PREBACKTEST_DEF = {
             pd.Timestamp(year=2014, month=12, day=8),
             pd.Timestamp(year=2014, month=12, day=15),
         ],
-        "end_date": pd.Timestamp(
-            year=2014, month=12, day=22
-        ),  # Last Monday before end of data
+        "end_date": pd.Timestamp(year=2014, month=12, day=22),  # Last Monday before end of data
     },
     "traffic": {  # 862 series, 24 prediction length
         "train_dates": [
@@ -158,9 +144,7 @@ _DATA_PREBACKTEST_DEF = {
             pd.Timestamp(year=2016, month=12, day=5),
             pd.Timestamp(year=2016, month=12, day=12),
         ],
-        "end_date": pd.Timestamp(
-            year=2016, month=12, day=19
-        ),  # Last Monday before end of data
+        "end_date": pd.Timestamp(year=2016, month=12, day=19),  # Last Monday before end of data
     },
 }
 
@@ -190,17 +174,11 @@ _monash_inject_datasets(
     "4656140",
     prediction_length=24,
 )
-_monash_inject_datasets(
-    "solar_10min", "solar_10_minutes_dataset.zip", "4656144", prediction_length=72
-)
-_monash_inject_datasets(
-    "traffic", "traffic_hourly_dataset.zip", "4656132", prediction_length=24
-)
+_monash_inject_datasets("solar_10min", "solar_10_minutes_dataset.zip", "4656144", prediction_length=72)
+_monash_inject_datasets("traffic", "traffic_hourly_dataset.zip", "4656132", prediction_length=24)
 
 
-def _count_timesteps(
-    left: pd.Timestamp, right: pd.Timestamp, delta: pd.DateOffset
-) -> int:
+def _count_timesteps(left: pd.Timestamp, right: pd.Timestamp, delta: pd.DateOffset) -> int:
     """
     Count how many timesteps there are between left and right, according to the given timesteps delta.
     If the number if not integer, round down.
@@ -213,9 +191,7 @@ def _count_timesteps(
     if type(right) == pd.Period:
         right = right.to_timestamp()
 
-    assert (
-        right >= left
-    ), f"Case where left ({left}) is after right ({right}) is not implemented in _count_timesteps()."
+    assert right >= left, f"Case where left ({left}) is after right ({right}) is not implemented in _count_timesteps()."
     try:
         return (right - left) // delta
     except TypeError:
@@ -256,26 +232,18 @@ def _load_raw_dataset(name: str, use_cached: bool) -> Tuple[MetaData, List[DataE
             assert old_series["feat_static_cat"] == new_series["feat_static_cat"]
 
         if old_series["start"] > new_series["start"]:
-            extra_timesteps = _count_timesteps(
-                new_series["start"], old_series["start"], timestep_delta
-            )
+            extra_timesteps = _count_timesteps(new_series["start"], old_series["start"], timestep_delta)
             # Not robust, but at the very least check that first common entry is the same before combining the data
             assert old_series["target"][0] == new_series["target"][extra_timesteps]
             old_series["start"] = new_series["start"]
-            old_series["target"] = np.concatenate(
-                [new_series["target"][0:extra_timesteps], old_series["target"]]
-            )
+            old_series["target"] = np.concatenate([new_series["target"][0:extra_timesteps], old_series["target"]])
 
         old_end = old_series["start"] + len(old_series["target"]) * timestep_delta
         new_end = new_series["start"] + len(new_series["target"]) * timestep_delta
         if new_end > old_end:
             extra_timesteps = _count_timesteps(old_end, new_end, timestep_delta)
-            assert (
-                old_series["target"][-1] == new_series["target"][-extra_timesteps - 1]
-            )
-            old_series["target"] = np.concatenate(
-                [old_series["target"], new_series["target"][-extra_timesteps:]]
-            )
+            assert old_series["target"][-1] == new_series["target"][-extra_timesteps - 1]
+            old_series["target"] = np.concatenate([old_series["target"], new_series["target"][-extra_timesteps:]])
 
     return uv_dataset.metadata, data
 
@@ -332,9 +300,7 @@ def generate_hp_search_datasets(
         # validation set starts 7 `frequencies` after the training set
         # validation_start_index is always `history_length` steps behind the start of the validation set
         # validation_end_index is always at the start of the backtest set
-        validation_start_index = (
-            first_backtest_index - validation_length - history_length
-        )  # 539 for FRED
+        validation_start_index = first_backtest_index - validation_length - history_length  # 539 for FRED
 
         s_train = series.copy()
         s_train["target"] = series["target"][
@@ -394,14 +360,10 @@ class __FixedMultivariateGrouper(MultivariateGrouper):
         all_entries = list()
         for test_start in range(0, len(dataset), test_length):
             dataset_at_test_date = dataset[test_start : test_start + test_length]
-            transformed_target = self._transform_target(
-                self._left_pad_data, dataset_at_test_date
-            )[FieldName.TARGET]
+            transformed_target = self._transform_target(self._left_pad_data, dataset_at_test_date)[FieldName.TARGET]
 
             grouped_data = dict()
-            grouped_data[FieldName.TARGET] = np.array(
-                list(transformed_target), dtype=np.float32
-            )
+            grouped_data[FieldName.TARGET] = np.array(list(transformed_target), dtype=np.float32)
             for data in dataset:
                 fields = data.keys()
                 break
@@ -470,9 +432,7 @@ def generate_prebacktesting_datasets(
 
     train_data = []
     for i, series in enumerate(raw_dataset):
-        train_end_index = _count_timesteps(
-            series["start"], backtest_timestamp, timestep_delta
-        )
+        train_end_index = _count_timesteps(series["start"], backtest_timestamp, timestep_delta)
 
         s_train = series.copy()
         s_train["target"] = series["target"][:train_end_index]
@@ -483,15 +443,9 @@ def generate_prebacktesting_datasets(
     test_data = []
     for test_id in range(num_test_dates):
         for i, series in enumerate(raw_dataset):
-            train_end_index = _count_timesteps(
-                series["start"], backtest_timestamp, timestep_delta
-            )
-            test_end_index = train_end_index + metadata.prediction_length * (
-                test_id + 1
-            )
-            test_start_index = (
-                test_end_index - metadata.prediction_length - history_length
-            )
+            train_end_index = _count_timesteps(series["start"], backtest_timestamp, timestep_delta)
+            test_end_index = train_end_index + metadata.prediction_length * (test_id + 1)
+            test_start_index = test_end_index - metadata.prediction_length - history_length
 
             s_test = series.copy()
             s_test["start"] = series["start"] + test_start_index * timestep_delta
@@ -558,9 +512,7 @@ def generate_backtesting_datasets(
 
     train_data = []
     for i, series in enumerate(raw_dataset):
-        train_end_index = _count_timesteps(
-            series["start"], backtest_timestamp, timestep_delta
-        )
+        train_end_index = _count_timesteps(series["start"], backtest_timestamp, timestep_delta)
 
         s_train = series.copy()
         s_train["target"] = series["target"][:train_end_index]
@@ -571,15 +523,9 @@ def generate_backtesting_datasets(
     test_data = []
     for test_id in range(num_test_dates):
         for i, series in enumerate(raw_dataset):
-            train_end_index = _count_timesteps(
-                series["start"], backtest_timestamp, timestep_delta
-            )
-            test_end_index = train_end_index + metadata.prediction_length * (
-                test_id + 1
-            )
-            test_start_index = (
-                test_end_index - metadata.prediction_length - history_length
-            )
+            train_end_index = _count_timesteps(series["start"], backtest_timestamp, timestep_delta)
+            test_end_index = train_end_index + metadata.prediction_length * (test_id + 1)
+            test_start_index = test_end_index - metadata.prediction_length - history_length
 
             s_test = series.copy()
             s_test["start"] = series["start"] + test_start_index * timestep_delta
