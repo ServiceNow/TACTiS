@@ -199,18 +199,23 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1, help="Batch Size.")
     parser.add_argument("--epochs", type=int, default=1000, help="Epochs.")
 
-    parser.add_argument("--optimizer", type=str, default="adam", choices=["rmsprop", "adam"], help="Optimizer to be used.")
+    parser.add_argument(
+        "--optimizer", type=str, default="adam", choices=["rmsprop", "adam"], help="Optimizer to be used."
+    )
     parser.add_argument(
         "--checkpoint_path",
-        type=str, help="Folder to store all checkpoints in. This folder will be created automatically if it does not exist."
+        type=str,
+        help="Folder to store all checkpoints in. This folder will be created automatically if it does not exist.",
     )
     parser.add_argument("--load_checkpoint", type=str, help="Checkpoint to start training from.")
-    parser.add_argument("--training_num_batches_per_epoch", type=int, default=512, help="Number of batches in a single epoch of training.")
     parser.add_argument(
-        "--backtest_id",
+        "--training_num_batches_per_epoch",
         type=int,
-        default=-1,
-        help="Backtest set to use. Use -1 to use the hyperparameter set."
+        default=512,
+        help="Number of batches in a single epoch of training.",
+    )
+    parser.add_argument(
+        "--backtest_id", type=int, default=-1, help="Backtest set to use. Use -1 to use the hyperparameter set."
     )
     parser.add_argument(
         "--prebacktest",
@@ -236,13 +241,17 @@ if __name__ == "__main__":
             "electricity_hourly",
             "traffic",
         ],
-        help="Dataset to train on"
+        help="Dataset to train on",
     )
 
     # compute_validation_metrics_split - True or False (default: False)
     # if True, all "hist_len+pred_len" windows are taken and sampling+evaluation is done (easy for datasets with less dimensions like FRED)
     # if False, the last window is the only window used (which itself is time-consuming for datasets like KDD)
-    parser.add_argument("--compute_validation_metrics_split", action="store_true", help="If True, windows are sampled across the sample. Else, only the last window in each sample is used.")
+    parser.add_argument(
+        "--compute_validation_metrics_split",
+        action="store_true",
+        help="If True, windows are sampled across the sample. Else, only the last window in each sample is used.",
+    )
 
     # Early stopping epochs based on total validation loss. -1 indicates no early stopping.
     parser.add_argument("--early_stopping_epochs", type=int, default=50, help="Early stopping patience")
@@ -254,17 +263,27 @@ if __name__ == "__main__":
     parser.add_argument("--clip_gradient", type=float, default=1e3, help="Gradient Clipping Magnitude")
     parser.add_argument("--history_factor", type=int, default=1, help="History Factor")
     # Series embedding
-    parser.add_argument("--flow_series_embedding_dim", type=int, default=5, help="Embedding Dimension of the Flow Series Encoder")
-    parser.add_argument("--copula_series_embedding_dim", type=int, default=5, help="Embedding Dimension of the Copula Series Encoder")
+    parser.add_argument(
+        "--flow_series_embedding_dim", type=int, default=5, help="Embedding Dimension of the Flow Series Encoder"
+    )
+    parser.add_argument(
+        "--copula_series_embedding_dim", type=int, default=5, help="Embedding Dimension of the Copula Series Encoder"
+    )
     # Input embedding
-    parser.add_argument("--flow_input_encoder_layers", type=int, default=2, help="Embedding Dimension of the Flow Encoder")
-    parser.add_argument("--copula_input_encoder_layers", type=int, default=2, help="Embedding Dimension of the Copula Encoder")
+    parser.add_argument(
+        "--flow_input_encoder_layers", type=int, default=2, help="Embedding Dimension of the Flow Encoder"
+    )
+    parser.add_argument(
+        "--copula_input_encoder_layers", type=int, default=2, help="Embedding Dimension of the Copula Encoder"
+    )
     # Shared encoder
     parser.add_argument("--flow_encoder_num_layers", type=int, default=2, help="Number of Layers in the Flow Encoder")
     parser.add_argument("--flow_encoder_num_heads", type=int, default=1, help="Number of Heads in the Flow Encoder")
     parser.add_argument("--flow_encoder_dim", type=int, default=16, help="Embedding Dimension of the Flow Encoder")
     # Shared encoder
-    parser.add_argument("--copula_encoder_num_layers", type=int, default=2, help="Number of Layers in the Copula Encoder")
+    parser.add_argument(
+        "--copula_encoder_num_layers", type=int, default=2, help="Number of Layers in the Copula Encoder"
+    )
     parser.add_argument("--copula_encoder_num_heads", type=int, default=1, help="Number of Heads in the Copula Encoder")
     parser.add_argument("--copula_encoder_dim", type=int, default=16, help="Embedding Dimension of the Copula Encoder")
     # Attentional Copula Decoder
@@ -275,25 +294,33 @@ if __name__ == "__main__":
         "--decoder_attention_mlp_class",
         type=str,
         default="_simple_linear_projection",
-        choices=["_easy_mlp", "_simple_linear_projection"], 
-        help="MLP Type to be used in the Attentional Copula"
+        choices=["_easy_mlp", "_simple_linear_projection"],
+        help="MLP Type to be used in the Attentional Copula",
     )
     # Final layers in the decoder
     parser.add_argument("--decoder_resolution", type=int, default=20, help="Number of bins in the Attentional Copula")
-    parser.add_argument("--decoder_mlp_layers", type=int, default=2, help="Number of layers in the final MLP in the Decoder")
-    parser.add_argument("--decoder_mlp_dim", type=int, default=48, help="Embedding Dimension of the final MLP in the Decoder")
+    parser.add_argument(
+        "--decoder_mlp_layers", type=int, default=2, help="Number of layers in the final MLP in the Decoder"
+    )
+    parser.add_argument(
+        "--decoder_mlp_dim", type=int, default=48, help="Embedding Dimension of the final MLP in the Decoder"
+    )
     parser.add_argument(
         "--decoder_act",
         type=str,
         default="relu",
-        choices=["relu", "elu", "glu", "gelu"], 
-        help="Activation Function to be used in the Decoder"
+        choices=["relu", "elu", "glu", "gelu"],
+        help="Activation Function to be used in the Decoder",
     )
     # DSF Marginal
     parser.add_argument("--dsf_num_layers", type=int, default=2, help="Number of layers in the deep sigmoidal flow")
     parser.add_argument("--dsf_dim", type=int, default=48, help="Embedding Dimension of the deep sigmoidal flow")
-    parser.add_argument("--dsf_mlp_layers", type=int, default=2, help="Number of layers in the marginal conditioner MLP")
-    parser.add_argument("--dsf_mlp_dim", type=int, default=48, help="Embedding Dimension of the marginal conditioner MLP")
+    parser.add_argument(
+        "--dsf_mlp_layers", type=int, default=2, help="Number of layers in the marginal conditioner MLP"
+    )
+    parser.add_argument(
+        "--dsf_mlp_dim", type=int, default=48, help="Embedding Dimension of the marginal conditioner MLP"
+    )
 
     # Loss normalization
     parser.add_argument(
@@ -301,7 +328,7 @@ if __name__ == "__main__":
         type=str,
         default="both",
         choices=["", "none", "series", "timesteps", "both"],
-        help="Loss normalization type"
+        help="Loss normalization type",
     )
 
     # Modify this argument to use interpolation
@@ -310,15 +337,23 @@ if __name__ == "__main__":
         type=str,
         choices=["forecasting", "interpolation"],
         default="forecasting",
-        help="Operation mode of the model"
+        help="Operation mode of the model",
     )
 
     # Don't restrict memory / time
-    parser.add_argument("--do_not_restrict_memory", action="store_true", help="When enabled, memory is not restricted to 12 GB")
-    parser.add_argument("--do_not_restrict_time", action="store_true", help="When enabled, total training time is not restricted to 3 days")
+    parser.add_argument(
+        "--do_not_restrict_memory", action="store_true", help="When enabled, memory is not restricted to 12 GB"
+    )
+    parser.add_argument(
+        "--do_not_restrict_time",
+        action="store_true",
+        help="When enabled, total training time is not restricted to 3 days",
+    )
 
     # CPU
-    parser.add_argument("--use_cpu", action="store_true", default=False, help="When enabled, CPU is used instead of GPU")
+    parser.add_argument(
+        "--use_cpu", action="store_true", default=False, help="When enabled, CPU is used instead of GPU"
+    )
 
     args = parser.parse_args()
 
