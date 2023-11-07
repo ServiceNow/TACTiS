@@ -52,6 +52,18 @@ def log_sigmoid(x):
     return -nn.functional.softplus(-x) - EPSILON
 
 
+def act_a(x):
+    return nn.functional.softplus(x) + EPSILON
+
+
+def act_b(x):
+    return x
+
+
+def act_w(x):
+    return nn.functional.softmax(x, dim=-1)
+
+
 class SigmoidFlow(nn.Module):
     # Indices:
     # b: batch
@@ -78,9 +90,9 @@ class SigmoidFlow(nn.Module):
         self.hidden_dim = hidden_dim
         self.no_logit = no_logit
 
-        self.act_a = lambda x: nn.functional.softplus(x) + EPSILON
-        self.act_b = lambda x: x
-        self.act_w = lambda x: nn.functional.softmax(x, dim=-1)
+        self.act_a = act_a
+        self.act_b = act_b
+        self.act_w = act_w
 
     def forward(self, params, x, logdet):
         """
@@ -110,20 +122,28 @@ class SigmoidFlow(nn.Module):
         x_pre = (w * sigm).sum(dim=-1)  # b, v
 
         logj = (
-            nn.functional.log_softmax(pre_w, dim=-1) + log_sigmoid(pre_sigm) + log_sigmoid(-pre_sigm) + torch.log(a)
+            nn.functional.log_softmax(pre_w, dim=-1)
+            + log_sigmoid(pre_sigm)
+            + log_sigmoid(-pre_sigm)
+            + torch.log(a)
         )  # b, v, h
 
         logj = log_sum_exp(logj, dim=-1, keepdim=False)  # b, v
 
         if self.no_logit:
             # Only keep the batch dimension, summing all others in case this method is called with more dimensions
+            # Adding the passed logdet here to accumulate
             logdet = logj.sum(dim=tuple(range(1, logj.dim()))) + logdet
             return x_pre, logdet
 
         x_pre_clipped = x_pre * (1 - EPSILON) + EPSILON * 0.5  # b, v
         xnew = torch.log(x_pre_clipped) - torch.log(1 - x_pre_clipped)  # b, v
 
-        logdet_ = logj + math.log(1 - EPSILON) - (torch.log(x_pre_clipped) + torch.log(-x_pre_clipped + 1))  # b, v
+        logdet_ = (
+            logj
+            + math.log(1 - EPSILON)
+            - (torch.log(x_pre_clipped) + torch.log(-x_pre_clipped + 1))
+        )  # b, v
 
         # Only keep the batch dimension, summing all others in case this method is called with more dimensions
         logdet = logdet_.sum(dim=tuple(range(1, logdet_.dim()))) + logdet
@@ -202,7 +222,11 @@ class DeepSigmoidFlow(nn.Module):
             x.shape[0],
         ).to(x.device)
         for i, layer in enumerate(self.layers):
-            x, logdet = layer(params[..., i * self.params_length : (i + 1) * self.params_length], x, logdet)
+            x, logdet = layer(
+                params[..., i * self.params_length : (i + 1) * self.params_length],
+                x,
+                logdet,
+            )
         return x, logdet
 
     def forward_no_logdet(self, params, x):
@@ -214,5 +238,64 @@ class DeepSigmoidFlow(nn.Module):
         # params: batches, samples, params dim
         # x: batches, samples
         for i, layer in enumerate(self.layers):
-            x = layer.forward_no_logdet(params[..., i * self.params_length : (i + 1) * self.params_length], x)
+            x = layer.forward_no_logdet(
+                params[..., i * self.params_length : (i + 1) * self.params_length], x
+            )
         return x
+
+    def inverse(
+        self,
+        marginal_params: torch.Tensor,
+        u: torch.Tensor,
+        max_iter: int = 100,
+        precision: float = 1e-6,
+        max_value: float = 1000.0,
+    ) -> torch.Tensor:
+        """
+
+        NOTE: Added for compatability with Alex' notebook "ground_truth_copula.ipynb" demonstrating the 2-dimensional example
+        This function actually belongs to the "marginal" class
+
+        Compute the inverse cumulative density function of a marginal conditioned using the given context, for the given value of u.
+        This method uses a dichotomic search.
+        The gradient of this method cannot be computed, so it should only be used for sampling.
+
+        Parameters:
+        -----------
+        context: Tensor [batch, series * time steps, embedding dimension]
+            A tensor containing an embedding for each variable and time step.
+            The series and time steps dimensions are merged.
+        u: Tensor [batch, series * time steps] or [batch, series * time steps, samples]
+            A tensor containing the value to be transformed using the inverse CDF.
+            The series and time steps dimensions are merged.
+            If a third dimension is present, then the context is considered to be constant across this dimension.
+        max_iter: int, default = 100
+            The maximum number of iterations for the dichotomic search.
+            The precision of the result should improve by a factor of 2 at each iteration.
+        precision: float, default = 1e-6
+            If the difference between CDF(x) and u is less than this value for all variables, stop the search.
+        max_value: float, default = 1000.0
+            The absolute upper bound on the possible output.
+        Returns:
+        --------
+        x: torch.Tensor [batch, series * time steps] or [batch, series * time steps, samples]
+            The inverse CDF at the given value.
+            The series and time steps dimensions are merged.
+            The shape of the output is the same as the shape of u.
+        """
+        # If u has both a variable and a sample dimension, then add a singleton dimension to marginal_params to have the correct shape
+        if marginal_params.dim() == u.dim():
+            marginal_params = marginal_params[:, :, None, :]
+
+        left = -max_value * torch.ones_like(u)
+        right = max_value * torch.ones_like(u)
+        for _ in range(max_iter):
+            mid = (left + right) / 2
+            error = self.forward_no_logdet(marginal_params, mid) - u
+            left[error <= 0] = mid[error <= 0]
+            right[error >= 0] = mid[error >= 0]
+
+            max_error = error.abs().max().item()
+            if max_error < precision:
+                break
+        return mid

@@ -1,5 +1,5 @@
 """
-Copyright 2022 ServiceNow
+Copyright 2023 ServiceNow
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -9,12 +9,11 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
->> The two possible encoders for TACTiS, based on the Transformer architecture.
 """
 
 
 import torch
+import time
 from torch import nn
 
 
@@ -71,6 +70,7 @@ class Encoder(nn.Module):
             ),
             self.attention_layers,
         )
+        self.total_attention_time = 0.0
 
     @property
     def embedding_dim(self) -> int:
@@ -103,17 +103,26 @@ class Encoder(nn.Module):
 
         # Merge the series and time steps, since the PyTorch attention implementation only accept three-dimensional input,
         # and the attention is applied between all tokens, no matter their series or time step.
-        encoded = encoded.view(num_batches, num_series * num_timesteps, self.embedding_dim)
+        encoded = encoded.view(
+            num_batches, num_series * num_timesteps, self.embedding_dim
+        )
+
+        attention_start_time = time.time()
 
         # The PyTorch implementation wants the following order: [tokens, batch, embedding]
         encoded = encoded.transpose(0, 1)
-
-        output = self.transformer_encoder(
-            encoded, mask=torch.zeros(encoded.shape[0], encoded.shape[0], device=encoded.device)
-        )
-
+        # Arjun: I have changed this to the usual full attention
+        output = self.transformer_encoder(encoded)
+        # # This was the previous code
+        # output = self.transformer_encoder(
+        #     encoded, mask=torch.zeros(encoded.shape[0], encoded.shape[0], device=encoded.device)
+        # )
         # Reset to the original shape
         output = output.transpose(0, 1)
+        attention_end_time = time.time()
+        self.total_attention_time = attention_end_time - attention_start_time
+
+        # Resize back to original shape
         output = output.view(num_batches, num_series, num_timesteps, self.embedding_dim)
 
         return output
@@ -168,6 +177,7 @@ class TemporalEncoder(nn.Module):
         self.attention_dim = attention_dim
         self.attention_feedforward_dim = attention_feedforward_dim
         self.dropout = dropout
+        self.total_attention_time = 0.0
 
         self.layer_timesteps = nn.ModuleList(
             [
@@ -180,6 +190,7 @@ class TemporalEncoder(nn.Module):
                 for _ in range(self.attention_layers)
             ]
         )
+
         self.layer_series = nn.ModuleList(
             [
                 nn.TransformerEncoderLayer(
@@ -223,32 +234,40 @@ class TemporalEncoder(nn.Module):
 
         data = encoded
 
+        attention_start_time = time.time()
         for i in range(self.attention_layers):
             # Treat the various series as a batch dimension
             mod_timesteps = self.layer_timesteps[i]
-            # [batch, series, time steps, embedding]
+            # [batch * series, time steps, embedding]
             data = data.flatten(start_dim=0, end_dim=1)
-            # [batch * series, time steps, embedding]
-            data = data.transpose(0, 1)
             # [time steps, batch * series, embedding] Correct order for PyTorch module
-            data = mod_timesteps(data)
             data = data.transpose(0, 1)
+            # Perform attention
+            data = mod_timesteps(data)
             # [batch * series, time steps, embedding]
-            data = data.unflatten(dim=0, sizes=(num_batches, num_series))
+            data = data.transpose(0, 1)
             # [batch, series, time steps, embedding]
+            data = data.unflatten(dim=0, sizes=(num_batches, num_series))
 
             # Treat the various time steps as a batch dimension
             mod_series = self.layer_series[i]
+            # Transpose to [batch, timesteps, series, embedding]
+            data = data.transpose(1, 2)
+            # [batch * time steps, series, embedding] Correct order for PyTorch module
+            data = data.flatten(start_dim=0, end_dim=1)
+            # [series, batch * time steps, embedding]
             data = data.transpose(0, 1)
-            # [series, batch, time steps, embedding]
-            data = data.flatten(start_dim=1, end_dim=2)
-            # [series, batch * time steps, embedding] Correct order for PyTorch module
+            # Perform attention
             data = mod_series(data)
-            data = data.unflatten(dim=1, sizes=(num_batches, num_timesteps))
-            # [series, batch, time steps, embedding]
+            # [batch * time steps, series, embedding]
             data = data.transpose(0, 1)
-            # [batch, series, time steps, embedding]
+            # [batch, time steps, series, embedding]
+            data = data.unflatten(dim=0, sizes=(num_batches, num_timesteps))
+            # Transpose to [batch, series, time steps, embedding]
+            data = data.transpose(1, 2)
 
+        attention_end_time = time.time()
+        self.total_attention_time = attention_end_time - attention_start_time
         # The resulting tensor may not be contiguous, which can cause problems further down the line.
         output = data.contiguous()
 

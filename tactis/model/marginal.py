@@ -1,5 +1,5 @@
 """
-Copyright 2022 ServiceNow
+Copyright 2023 ServiceNow
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -9,8 +9,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
->> The marginal distribution for the forecasts
 """
 
 
@@ -26,7 +24,14 @@ class DSFMarginal(nn.Module):
     The conditioning MLP uses the embedding from the encoder as its input.
     """
 
-    def __init__(self, context_dim: int, mlp_layers: int, mlp_dim: int, flow_layers: int, flow_hid_dim: int):
+    def __init__(
+        self,
+        context_dim: int,
+        mlp_layers: int,
+        mlp_dim: int,
+        flow_layers: int,
+        flow_hid_dim: int,
+    ):
         """
         Parameters:
         -----------
@@ -49,7 +54,9 @@ class DSFMarginal(nn.Module):
         self.flow_layers = flow_layers
         self.flow_hid_dim = flow_hid_dim
 
-        self.marginal_flow = DeepSigmoidFlow(n_layers=self.flow_layers, hidden_dim=self.flow_hid_dim)
+        self.marginal_flow = DeepSigmoidFlow(
+            n_layers=self.flow_layers, hidden_dim=self.flow_hid_dim
+        )
 
         elayers = [nn.Linear(self.context_dim, self.mlp_dim), nn.ReLU()]
         for _ in range(1, self.mlp_layers):
@@ -57,7 +64,9 @@ class DSFMarginal(nn.Module):
         elayers += [nn.Linear(self.mlp_dim, self.marginal_flow.total_params_length)]
         self.marginal_conditioner = nn.Sequential(*elayers)
 
-    def forward_logdet(self, context: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward_logdet(
+        self, context: torch.Tensor, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute the cumulative density function of a marginal conditioned using the given context, for the given value of x.
         Also returns the logarithm of the derivative of this transformation.
@@ -109,7 +118,9 @@ class DSFMarginal(nn.Module):
             The series and time steps dimensions are merged.
             The shape of the output is the same as the shape of x.
         """
-        marginal_params = self.marginal_conditioner(context)
+        marginal_params = self.marginal_conditioner(
+            context
+        )  # [batch, series*timesteps, self.marginal_flow.total_params_length]
         # If x has both a variable and a sample dimension, then add a singleton dimension to marginal_params to have the correct shape
         if marginal_params.dim() == x.dim():
             marginal_params = marginal_params[:, :, None, :]
