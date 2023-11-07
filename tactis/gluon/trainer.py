@@ -334,10 +334,6 @@ class TACTISTrainer(Trainer):
                 if self.training_num_batches_per_epoch == batch_no:
                     break
 
-            import pdb
-
-            pdb.set_trace()
-
             # Accumulate training time
             training_epoch_end_time = time.time()
             total_training_only_time += training_epoch_end_time - training_epoch_start_time

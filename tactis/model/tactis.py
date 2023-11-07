@@ -388,9 +388,6 @@ class TACTiS(nn.Module):
         self.copula_input_encoder = deepcopy(nn.Sequential(*copula_elayers))
 
         if self.copula_decoder_args:
-            import pdb
-
-            pdb.set_trace()
             self.decoder.create_attentional_copula()
 
     def set_experiment_mode(self, experiment_mode: str):
