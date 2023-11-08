@@ -12,7 +12,7 @@ Alexandre Drouin, Étienne Marcotte, Nicolas Chapados (2023). *TACTiS-2: Better,
 
 For an implementation of the original version of TACTiS, please see [here](https://github.com/ServiceNow/tactis/tree/v1.0.0).
 
-`train.py` can be used to train the TACTiS-2 model for a dataset. The arguments in `train.py` can be used to specify the dataset, the hyperparameters of the model and a whole range of other training options.
+`train.py` can be used to train the TACTiS-2 model for a dataset. The arguments in `train.py` can be used to specify the dataset, training task (forecasting or interpolation), the hyperparameters of the model and a whole range of other training options.
 More features such as interfaces to evaluate the model and obtain metrics, as well as demo notebooks will be added to this codebase soon.
 
 ## Citing this work
