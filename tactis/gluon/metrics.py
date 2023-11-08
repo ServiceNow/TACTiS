@@ -16,7 +16,6 @@ import os
 import gc
 import pickle
 import sys
-import time
 import torch
 from tqdm import tqdm
 from typing import Dict, Iterable, Iterator, Optional
@@ -38,17 +37,14 @@ class SplitValidationTransform(transform.FlatMapTransformation):
     A time step is possible if the resulting series is at least as long as the window_length parameter.
     """
 
-    def __init__(self, window_length: int, max_windows=None):
+    def __init__(self, window_length: int):
         super().__init__()
         self.window_length = window_length
-        self.max_windows = max_windows
         self.num_windows_seen = 0
 
     def flatmap_transform(self, data: DataEntry, is_train: bool) -> Iterator[DataEntry]:
         full_length = data["target"].shape[-1]
         for end_point in tqdm(range(self.window_length, full_length + 1)):
-            if self.max_windows and self.num_windows_seen == self.max_windows:
-                break
             data_copy = data.copy()
             data_copy["target"] = data["target"][..., :end_point]
             self.num_windows_seen += 1
@@ -158,7 +154,6 @@ def compute_validation_metrics(
     savedir: Optional[str] = None,
     return_forecasts_and_targets: bool = False,
     subset_series=None,
-    max_windows=None,
     skip_energy=True,
     n_quantiles=20,
 ):
@@ -188,23 +183,14 @@ def compute_validation_metrics(
     result: Dict[str, float]
         A dictionary containing the various metrics.
     """
-    data_splitting_start_time = time.time()
     if split:
-        split_dataset = transform.TransformedDataset(
-            dataset, transformation=SplitValidationTransform(window_length, max_windows)
-        )
+        split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
     else:
         split_dataset = dataset
-    data_splitting_end_time = time.time()
-    print(
-        "Metrics function: Data splitting time:",
-        data_splitting_end_time - data_splitting_start_time,
-    )
 
     while True:
         print("Batch size:", predictor.batch_size)
         try:
-            predicting_start_time = time.time()
             forecast_it, ts_it = make_evaluation_predictions(
                 dataset=split_dataset, predictor=predictor, num_samples=num_samples
             )
@@ -222,21 +208,10 @@ def compute_validation_metrics(
                 gc.collect()
                 torch.cuda.empty_cache()
 
-    if max_windows:
-        targets = targets[:max_windows]
-
     if subset_series:
         targets = [target.iloc[:, subset_series] for target in targets]
         for target in targets:
             target.columns = list(range(len(subset_series)))
-
-    print("#Forecasts:", len(forecasts), "#Targets:", len(targets))
-    print("Shape of forecasts[0].samples", forecasts[0].samples.shape)
-    predicting_end_time = time.time()
-    print(
-        "Metrics function: Predicting time:",
-        predicting_end_time - predicting_start_time,
-    )
 
     # A raw dump of the forecasts and targets for post-hoc analysis if needed, in the experiment folder
     # Can be loaded with the simple script:
@@ -288,14 +263,8 @@ def compute_validation_metrics(
     )
 
     # The GluonTS evaluator is very noisy on the standard error, so suppress it.
-    metrics_calc_start_time = time.time()
     with SuppressOutput():
         agg_metric, ts_wise_metrics = evaluator(targets, forecasts)
-    metrics_calc_end_time = time.time()
-    print(
-        "Metrics function: Metrics calc time:",
-        metrics_calc_end_time - metrics_calc_start_time,
-    )
 
     if skip_energy:
         metrics = {
@@ -341,7 +310,6 @@ def compute_validation_metrics_interpolation(
     savedir: Optional[str] = None,
     return_forecasts_and_targets: bool = False,
     subset_series=None,
-    max_windows=None,
     skip_energy=True,
     n_quantiles=20,
 ):
@@ -372,29 +340,20 @@ def compute_validation_metrics_interpolation(
         A dictionary containing the various metrics.
     """
     history_length = window_length - prediction_length
-    data_splitting_start_time = time.time()
     if not split:
         raise NotImplementedError(
             "Evaluating only last window is not supported for interpolation. Use --compute_validation_metrics_split."
         )
     if split:
-        split_dataset = transform.TransformedDataset(
-            dataset, transformation=SplitValidationTransform(window_length, max_windows)
-        )
+        split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
     else:
         split_dataset = dataset
-    data_splitting_end_time = time.time()
-    print(
-        "Metrics function: Data splitting time:",
-        data_splitting_end_time - data_splitting_start_time,
-    )
 
     batch_size = predictor.batch_size
     while True:
         print("Initial batch size:", batch_size)
         predictor.batch_size = batch_size
         try:
-            predicting_start_time = time.time()
             forecast_it, ts_it = make_evaluation_predictions(
                 dataset=split_dataset, predictor=predictor, num_samples=num_samples
             )
@@ -411,9 +370,6 @@ def compute_validation_metrics_interpolation(
 
     forecasts = list(forecast_it)
     targets = list(ts_it)
-
-    if max_windows:
-        targets = targets[:max_windows]
 
     if subset_series:
         targets = [target.iloc[:, subset_series] for target in targets]
@@ -433,14 +389,6 @@ def compute_validation_metrics_interpolation(
         interpolation_segment_targets.append(modified_target)
         interpolation_start_dates.append(target.index[interpolation_window_start + k])
         forecasts[k].start_date = target.index[interpolation_window_start + k]
-
-    print("#Forecasts:", len(forecasts), "#Targets:", len(interpolation_segment_targets))
-    print("Shape of forecasts[0].samples", forecasts[0].samples.shape)
-    predicting_end_time = time.time()
-    print(
-        "Metrics function: Predicting time:",
-        predicting_end_time - predicting_start_time,
-    )
 
     # A raw dump of the forecasts and targets for post-hoc analysis if needed, in the experiment folder
     # Can be loaded with the simple script:
@@ -492,14 +440,8 @@ def compute_validation_metrics_interpolation(
     )
 
     # The GluonTS evaluator is very noisy on the standard error, so suppress it.
-    metrics_calc_start_time = time.time()
     with SuppressOutput():
         agg_metric, _ = evaluator(interpolation_segment_targets, forecasts)
-    metrics_calc_end_time = time.time()
-    print(
-        "Metrics function: Metrics calc time:",
-        metrics_calc_end_time - metrics_calc_start_time,
-    )
 
     if skip_energy:
         metrics = {

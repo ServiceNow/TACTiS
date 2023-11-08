@@ -533,15 +533,7 @@ def generate_backtesting_datasets(
             s_test["item_id"] = len(test_data)
             test_data.append(s_test)
 
-    print("# of windows in the backtest test set:", num_test_dates)
-
     train_grouper = MultivariateGrouper()
     test_grouper = __FixedMultivariateGrouper(num_test_dates=num_test_dates)
 
     return metadata, train_grouper(train_data), test_grouper(test_data)
-
-
-if __name__ == "__main__":
-    dataset = "fred_md"
-    history_factor = 2
-    generate_hp_search_datasets(dataset, history_factor)

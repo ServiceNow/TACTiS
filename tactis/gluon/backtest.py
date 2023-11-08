@@ -32,8 +32,6 @@ def make_evaluation_predictions(
     The predictor will take as input the given time series without the trailing
     prediction_length observations.
 
-    Modified from gluonts to use parameter `max_windows`.
-
     Parameters
     ----------
     dataset
@@ -79,10 +77,6 @@ def make_evaluation_predictions(
         assert target.shape[-1] >= prediction_length  # handles multivariate case (target_dim, history_length)
         data["target"] = target[..., : -prediction_length - lead_time]
         return data
-
-    # TODO filter out time series with target shorter than prediction length
-    # TODO or fix the evaluator so it supports missing values instead (all
-    # TODO the test set may be gone otherwise with such a filtering)
 
     dataset_as_is = deepcopy(dataset)
     dataset_trunc = AdhocTransform(truncate_target).apply(dataset)
