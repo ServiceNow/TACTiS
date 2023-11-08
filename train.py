@@ -140,7 +140,6 @@ def main(args):
     set_seed(seed)
     if args.backtest_id >= 0 and args.backtest_id <= 5:
         backtesting = True
-        args.compute_validation_metrics_split = False
         print("Using backtest dataset with ID", args.backtest_id)
         if not args.prebacktest:
             print("CAUTION: The validation set here is the actual test set.")
@@ -242,15 +241,6 @@ if __name__ == "__main__":
             "traffic",
         ],
         help="Dataset to train on",
-    )
-
-    # compute_validation_metrics_split - True or False (default: False)
-    # if True, all "hist_len+pred_len" windows are taken and sampling+evaluation is done (easy for datasets with less dimensions like FRED)
-    # if False, the last window is the only window used (which itself is time-consuming for datasets like KDD)
-    parser.add_argument(
-        "--compute_validation_metrics_split",
-        action="store_true",
-        help="If True, windows are sampled across the sample. Else, only the last window in each sample is used.",
     )
 
     # Early stopping epochs based on total validation loss. -1 indicates no early stopping.
