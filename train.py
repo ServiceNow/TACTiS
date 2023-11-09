@@ -40,8 +40,7 @@ def main(args):
     if args.use_cpu:
         print("Using CPU")
 
-    checkpoint_path = args.checkpoint_path
-    logger = None
+    checkpoint_dir = args.checkpoint_dir
 
     # Print memory avl.
     if not args.use_cpu:
@@ -172,10 +171,9 @@ def main(args):
             clip_gradient=clip_gradient,
             device=torch.device("cuda") if not args.use_cpu else torch.device("cpu"),
             log_subparams_every=args.log_subparams_every,
-            checkpoint_path=checkpoint_path,
+            checkpoint_dir=checkpoint_dir,
             seed=seed,
             load_checkpoint=load_checkpoint,
-            logger=logger,
             early_stopping_epochs=args.early_stopping_epochs,
             do_not_restrict_time=args.do_not_restrict_time,
         ),
@@ -202,7 +200,7 @@ if __name__ == "__main__":
         "--optimizer", type=str, default="adam", choices=["rmsprop", "adam"], help="Optimizer to be used."
     )
     parser.add_argument(
-        "--checkpoint_path",
+        "--checkpoint_dir",
         type=str,
         help="Folder to store all checkpoints in. This folder will be created automatically if it does not exist.",
     )
