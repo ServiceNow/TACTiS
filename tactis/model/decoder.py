@@ -173,11 +173,6 @@ class CopulaDecoder(nn.Module):
         hist_true_x = true_value[:, mask]  # [batch, series*(num_hist_timesteps)]
         pred_true_x = true_value[:, ~mask]
 
-        if type(T) == torch.Tensor:
-            T = T.item()
-        if type(history_factor) == torch.Tensor:
-            history_factor = history_factor.item()
-
         num_pred_variables = round(T / (history_factor + 1))
 
         # Transform to [0,1] using the marginals
@@ -265,8 +260,6 @@ class CopulaDecoder(nn.Module):
                 hist_encoded=hist_encoded_copula,
                 hist_true_u=hist_true_u,
                 pred_encoded=pred_encoded_copula,
-                num_series=S,
-                num_timesteps=num_pred_variables,
             )
         else:
             num_batches, num_variables, _ = pred_encoded_flow.shape
@@ -360,6 +353,8 @@ class AttentionalCopula(nn.Module):
 
         if activation_function == "relu":
             activation = nn.ReLU
+        else:
+            raise NotImplementedError("Activation functions other than ReLU are not implemented")
 
         if attention_mlp_class == "_easy_mlp":
             mlp_args_key = {
@@ -634,8 +629,6 @@ class AttentionalCopula(nn.Module):
         hist_encoded: torch.Tensor,
         hist_true_u: torch.Tensor,
         pred_encoded: torch.Tensor,
-        num_series: int,
-        num_timesteps: int,
     ) -> torch.Tensor:
         """
         Generate the given number of samples from the forecasted copula.
@@ -664,8 +657,6 @@ class AttentionalCopula(nn.Module):
         num_variables = pred_encoded.shape[1]
         num_history = hist_encoded.shape[1]
         device = pred_encoded.device
-
-        assert num_variables == num_series * num_timesteps
 
         permutation = torch.arange(0, num_variables).long()
         permutations = torch.stack([permutation for _ in range(num_samples)])

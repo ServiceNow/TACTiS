@@ -189,7 +189,7 @@ def compute_validation_metrics(
         split_dataset = dataset
 
     while True:
-        print("Batch size:", predictor.batch_size)
+        print("Using batch size:", predictor.batch_size)
         try:
             forecast_it, ts_it = make_evaluation_predictions(
                 dataset=split_dataset, predictor=predictor, num_samples=num_samples
@@ -349,24 +349,25 @@ def compute_validation_metrics_interpolation(
     else:
         split_dataset = dataset
 
-    batch_size = predictor.batch_size
     while True:
-        print("Initial batch size:", batch_size)
-        predictor.batch_size = batch_size
+        print("Using batch size:", predictor.batch_size)
         try:
             forecast_it, ts_it = make_evaluation_predictions(
                 dataset=split_dataset, predictor=predictor, num_samples=num_samples
             )
+            forecasts = list(forecast_it)
+            targets = list(ts_it)
             break
         except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
             print(error)
-            if batch_size == 1:
+            if predictor.batch_size == 1:
                 print("Batch is already at the minimum. Cannot reduce further. Exiting...")
                 return None
             else:
                 print("Caught OutOfMemoryError. Reducing batch size...")
-                batch_size //= 2
-                print("New batch size:", batch_size)
+                predictor.batch_size //= 2
+                gc.collect()
+                torch.cuda.empty_cache()
 
     forecasts = list(forecast_it)
     targets = list(ts_it)

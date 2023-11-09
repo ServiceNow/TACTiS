@@ -149,6 +149,7 @@ class TACTiSPredictionNetwork(nn.Module):
 class TACTiSPredictionNetworkInterpolation(nn.Module):
     """
     A shell on top of the TACTiS module, to be used during inference only.
+    For now, interpolation is only supported with equal history before and after the window to be interpolated.
     """
 
     def __init__(
@@ -207,7 +208,6 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
             pred_time=pred_time,
         )
 
-        # TODO: To verify this
         total_length = samples.shape[2]
         interpolation_window_start = total_length - self.prediction_length - (self.history_length // 2)
         interpolation_window_end = total_length - (self.history_length // 2)

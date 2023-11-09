@@ -256,7 +256,6 @@ class TACTiS(nn.Module):
         loss_normalization = loss_normalization.lower()
         assert loss_normalization in {"", "none", "series", "timesteps", "both"}
 
-        # Added "_args" for some arguments since there is conflict with the name of the object used
         self.num_series = num_series
         self.flow_series_embedding_dim = flow_series_embedding_dim
         self.copula_series_embedding_dim = copula_series_embedding_dim
@@ -401,7 +400,6 @@ class TACTiS(nn.Module):
         hist_value: torch.Tensor,
         pred_time: torch.Tensor,
         pred_value: torch.Tensor,
-        series_emb=None,
         flow_series_emb=None,
         copula_series_emb=None,
     ):
@@ -421,8 +419,10 @@ class TACTiS(nn.Module):
             A tensor containing the time steps associated with the values of pred_value.
         pred_value: Tensor [batch, series, time steps]
             A tensor containing the values that the model should learn to forecast at inference time.
-        series_emb: Tensor [batch, series, embedding size]
-            An embedding for each series, expanded over the batches.
+        flow_series_emb: Tensor [batch, series, flow embedding size]
+            An embedding for each series for the marginals, expanded over the batches.
+        copula_series_emb: Tensor [batch, series, copula embedding size]
+            An embedding for each series for the copula, expanded over the batches.
 
         Returns:
         --------
@@ -430,8 +430,8 @@ class TACTiS(nn.Module):
         hist_value: Tensor [batch, series, time steps]
         pred_time: Tensor [batch, series, time steps]
         pred_value: Tensor [batch, series, time steps]
-        series_emb: Tensor [batch, series, embedding size]
-            A subset of the input data, where only the given number of series is kept for each batch.
+        flow_series_emb: Tensor [batch, series, flow embedding size]
+        copula_series_emb: Tensor [batch, series, copula embedding size]
         """
         num_batches = hist_time.shape[0]
         num_series = hist_time.shape[1]
@@ -968,11 +968,6 @@ class TACTiS(nn.Module):
         num_hist_timesteps = hist_value.shape[2]
         num_pred_timesteps = pred_time.shape[-1]
         device = hist_value.device
-
-        # print("num_batches:", num_batches)
-        # print("num_series:", num_series)
-        # print("num_hist_timesteps:", num_hist_timesteps)
-        # print("num_pred_timesteps:", num_pred_timesteps)
 
         # Gets the embedding for each series [batch, series, embedding size]
         # Expand over batches to be compatible with the bagging procedure, which select different series for each batch

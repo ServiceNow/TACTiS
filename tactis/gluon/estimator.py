@@ -325,29 +325,25 @@ class TACTiSEstimator(PyTorchEstimator):
             **kwargs,
         )
 
-        if validation_data is not None:
-            validation_instance_splitter = self.create_instance_splitter("validation")
+        validation_instance_splitter = self.create_instance_splitter("validation")
 
-            input_transform = transformation + validation_instance_splitter + SelectFields(input_names)
-            if not backtesting:
-                print("Creating validation dataset with SplitValidationTransform")
-                validation_iter_dataset = TransformedDataset(
-                    validation_data,
-                    transformation=SplitValidationTransform(self.history_length + self.prediction_length),
-                )
-            else:
-                print("Creating validation dataset without SplitValidationTransform")
-                validation_iter_dataset = validation_data
-            validation_iter_args = {
-                "dataset": validation_iter_dataset,
-                "transform": input_transform,
-                "stack_fn": lambda data: batchify(data, self.trainer.device),
-            }
+        input_transform = transformation + validation_instance_splitter + SelectFields(input_names)
+        if not backtesting:
+            validation_iter_dataset = TransformedDataset(
+                validation_data,
+                transformation=SplitValidationTransform(self.history_length + self.prediction_length),
+            )
+        else:
+            validation_iter_dataset = validation_data
+        validation_iter_args = {
+            "dataset": validation_iter_dataset,
+            "transform": input_transform,
+            "stack_fn": lambda data: batchify(data, self.trainer.device),
+        }
 
         self.trainer(
             net=trained_net,
             train_iter=training_data_loader,
-            validation_iter=None,
             validation_iter_args=validation_iter_args,
             optimizer=optimizer,
         )

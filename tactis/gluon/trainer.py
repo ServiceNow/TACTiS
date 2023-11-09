@@ -43,10 +43,9 @@ class TACTISTrainer(Trainer):
         clip_gradient: Optional[float] = None,
         device: Optional[Union[torch.device, str]] = None,
         log_subparams_every=-1,
-        checkpoint_path=None,
+        checkpoint_dir=None,
         seed=42,
         load_checkpoint=None,
-        logger=None,
         early_stopping_epochs=-1,
         do_not_restrict_time=False,
         **kwargs,
@@ -59,27 +58,24 @@ class TACTISTrainer(Trainer):
         self.clip_gradient = clip_gradient
         self.device = device
         self.log_subparams_every = log_subparams_every
-        self.checkpoint_path = checkpoint_path
+        self.checkpoint_dir = checkpoint_dir
         self.seed = seed
         self.load_checkpoint = load_checkpoint
-        self.logger = logger
 
         self.early_stopping_epochs = early_stopping_epochs
         self.do_not_restrict_time = do_not_restrict_time
 
-        if self.checkpoint_path == None:
-            print("WARNING: Checkpoints will not be saved")
+        if self.checkpoint_dir == None:
+            print("Checkpoints will not be saved")
         else:
-            print("Checkpoints will be saved at", self.checkpoint_path)
-            os.makedirs(self.checkpoint_path, exist_ok=True)
+            print("Checkpoints will be saved at", self.checkpoint_dir)
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
 
     def set_load_checkpoint(self, load_checkpoint):
         self.load_checkpoint = load_checkpoint
 
-    def set_logger(self, logger):
-        self.logger = logger
-
-    def disable_grads(self, net, disable_grads):
+    @staticmethod
+    def disable_grads(net, disable_grads):
         total_enabled = 0
         total_disabled = 0
         total_grads = 0
@@ -94,7 +90,7 @@ class TACTISTrainer(Trainer):
                 total_disabled += 1
             total_grads += 1
 
-        print("Grads to disable this epoch:", disable_grads)
+        print("Grads to disable:", disable_grads)
         print("Total disabled grads:", total_disabled, "/", total_grads)
         print("Total enabled grads:", total_enabled, "/", total_grads)
 
@@ -102,13 +98,10 @@ class TACTISTrainer(Trainer):
         self,
         net: nn.Module,
         train_iter: DataLoader,
-        validation_iter: Optional[DataLoader] = None,
         validation_iter_args=None,
         optimizer: str = "adam",
     ) -> None:
         set_seed(self.seed)
-        if not self.logger:
-            self.logger = DummyLogger()
 
         # A list of parameters related to each component for reference
         params_input_encoder_flow = [
@@ -192,7 +185,7 @@ class TACTISTrainer(Trainer):
                 disable_grads.extend(params_decoder_flow)
                 disable_grads.extend(params_input_encoder_flow)
                 disable_grads.extend(params_encoder_flow)
-                self.disable_grads(net, disable_grads)
+                TACTISTrainer.disable_grads(net, disable_grads)
 
             start_epoch = ckpt["epoch"] + 1
             print("Start epoch set to", start_epoch)
@@ -219,7 +212,6 @@ class TACTISTrainer(Trainer):
         step = -1
         best_epoch = -1
 
-        # epoch:value dictionary
         best_val_loss_unweighted = None
 
         start_epoch = 0
@@ -276,7 +268,7 @@ class TACTISTrainer(Trainer):
                 disable_grads.extend(params_input_encoder_flow)
                 disable_grads.extend(params_encoder_flow)
 
-                self.disable_grads(net, disable_grads)
+                TACTISTrainer.disable_grads(net, disable_grads)
 
                 epochs_since_best_epoch = 0
                 total_training_only_time = 0.0
@@ -345,7 +337,7 @@ class TACTISTrainer(Trainer):
             ####### VALIDATION #########
             ####### VALIDATION #########
             print("Validation...")
-            if validation_iter is None and validation_iter_args is not None:
+            if validation_iter_args is not None:
                 print("Creating a validation dataloader with a batch size of", batch_size)
                 validation_iter = ValidationDataLoader(**validation_iter_args, batch_size=batch_size)
             validation_length = None
@@ -355,9 +347,7 @@ class TACTISTrainer(Trainer):
             cumm_epoch_loss_val_unnormalized = 0.0
             cumm_marginal_loss_val = 0.0
             cumm_copula_loss_val = 0.0
-            set_seed(
-                epoch_no + self.seed
-            )  # Change the validation set each epoch to ensure stability of minimum obtained through early stopping
+            set_seed(epoch_no + self.seed)
 
             validation_num_windows_seen = 0
             validation_num_batches_per_epoch = len(validation_iter)
@@ -413,7 +403,7 @@ class TACTISTrainer(Trainer):
             ####### VALIDATION #########
             ####### VALIDATION #########
 
-            if self.checkpoint_path:
+            if self.checkpoint_dir:
                 state_dict = {
                     "model": net.state_dict(),
                     "epoch": epoch_no,
@@ -425,22 +415,22 @@ class TACTISTrainer(Trainer):
                 }
                 state_dict["optim"] = optim.state_dict()
                 filename = "last.pth.tar"
-                save_checkpoint(state_dict, self.checkpoint_path, filename=filename)
+                save_checkpoint(state_dict, self.checkpoint_dir, filename=filename)
                 print(
                     "Checkpoint of epoch",
                     epoch_no,
                     "saved at",
-                    os.path.join(self.checkpoint_path, filename),
+                    os.path.join(self.checkpoint_dir, filename),
                 )
 
                 if epochs_since_best_epoch == 0:
                     filename = "best.pth.tar"
-                    save_checkpoint(state_dict, self.checkpoint_path, filename=filename)
+                    save_checkpoint(state_dict, self.checkpoint_dir, filename=filename)
                     print(
                         "Checkpoint of epoch",
                         epoch_no,
                         "saved at",
-                        os.path.join(self.checkpoint_path, filename),
+                        os.path.join(self.checkpoint_dir, filename),
                     )
 
             # Check if the training time criterion is reached
