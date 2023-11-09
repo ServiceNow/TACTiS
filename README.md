@@ -12,13 +12,20 @@ Alexandre Drouin, Étienne Marcotte, Nicolas Chapados (2023). *TACTiS-2: Better,
 
 For an implementation of the original version of TACTiS, please see [here](https://github.com/ServiceNow/tactis/tree/v1.0.0).
 
-**We are preparing the TACTiS-2 code for release. Please check back later and contact us if you require early access.**
-
+`train.py` can be used to train the TACTiS-2 model for a dataset. The arguments in `train.py` can be used to specify the dataset, the training task (forecasting or interpolation), the hyperparameters of the model and a whole range of other training options.
+More features such as interfaces to evaluate the model and obtain metrics, as well as demo notebooks will be added to this codebase soon.
 
 ## Citing this work
 
 Please use the following Bibtex entry to cite TACTiS-2.
 
 ```
-Coming soon!
+@misc{ashok2023tactis2,
+      title={TACTiS-2: Better, Faster, Simpler Attentional Copulas for Multivariate Time Series}, 
+      author={Arjun Ashok and Étienne Marcotte and Valentina Zantedeschi and Nicolas Chapados and Alexandre Drouin},
+      year={2023},
+      eprint={2310.01327},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
 ```
