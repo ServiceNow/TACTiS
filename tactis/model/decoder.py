@@ -229,7 +229,6 @@ class CopulaDecoder(nn.Module):
         """
         target_shape = torch.Size((true_value.shape[0], true_value.shape[1], true_value.shape[2], num_samples))
 
-        B, S, T, E = flow_encoded.shape
         flow_encoded = _merge_series_time_dims(flow_encoded)
         if not self.skip_copula:
             copula_encoded = _merge_series_time_dims(copula_encoded)
@@ -247,9 +246,6 @@ class CopulaDecoder(nn.Module):
         pred_encoded_flow = flow_encoded[:, ~mask, :]
         if not self.skip_copula:
             pred_encoded_copula = copula_encoded[:, ~mask, :]
-        history_factor = hist_encoded_flow.shape[1] / pred_encoded_flow.shape[1]
-
-        num_pred_variables = int(T // (history_factor + 1))
 
         # Transform to [0,1] using the marginals
         hist_true_u = self.marginal.forward_no_logdet(hist_encoded_flow, hist_true_x)
@@ -734,10 +730,10 @@ class AttentionalCopula(nn.Module):
                         self.attention_dim,
                     )
 
-                    keys_hist_current_layer = copy.deepcopy(keys_hist[layer])
-                    keys_samples_current_layer = copy.deepcopy(keys_samples[layer][:, :, :, 0:i, :])
-                    values_hist_current_layer = copy.deepcopy(values_hist[layer])
-                    values_samples_current_layer = copy.deepcopy(values_samples[layer][:, :, :, 0:i, :])
+                    keys_hist_current_layer = keys_hist[layer]
+                    keys_samples_current_layer = keys_samples[layer][:, :, :, 0:i, :]
+                    values_hist_current_layer = values_hist[layer]
+                    values_samples_current_layer = values_samples[layer][:, :, :, 0:i, :]
 
                     # Calculate attention weights
                     # Einstein sum indices:

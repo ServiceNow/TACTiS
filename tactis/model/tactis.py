@@ -217,7 +217,7 @@ class TACTiS(nn.Module):
         flow_temporal_encoder: Optional[Dict[str, Any]] = None,
         copula_temporal_encoder: Optional[Dict[str, Any]] = None,
         copula_decoder: Optional[Dict[str, Any]] = None,
-        skip_copula: bool = False,
+        skip_copula: bool = True,
         experiment_mode: str = "forecasting",
     ):
         """
@@ -1309,16 +1309,15 @@ class TACTiS(nn.Module):
                     copula_encoded
                 )  # Shape: [batch, num_series, num_hist_timesteps+num_pred_timesteps, encoder_size]
 
-            if self.skip_copula:
-                copula_encoded = None
-            decoder_output = self.decoder.sample(
-                num_samples,
-                encoded=None,
-                mask=mask,
-                true_value=true_value,
-                flow_encoded=flow_encoded,
-                copula_encoded=copula_encoded,
-            )
+        if self.skip_copula:
+            copula_encoded = None
+        decoder_output = self.decoder.sample(
+            num_samples,
+            mask=mask,
+            true_value=true_value,
+            flow_encoded=flow_encoded,
+            copula_encoded=copula_encoded,
+        )
 
         samples = decoder_output
         samples = normalizer.denormalize(samples)

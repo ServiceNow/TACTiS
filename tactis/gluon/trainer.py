@@ -22,7 +22,6 @@ from torch.utils.data import DataLoader
 
 from gluonts.core.component import validated
 from tactis.gluon.utils import (
-    DummyLogger,
     save_checkpoint,
     set_seed,
 )
