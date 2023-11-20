@@ -17,7 +17,6 @@ import gc
 import pickle
 import sys
 import torch
-from tqdm import tqdm
 from typing import Dict, Iterable, Iterator, Optional
 
 import numpy as np
@@ -44,7 +43,7 @@ class SplitValidationTransform(transform.FlatMapTransformation):
 
     def flatmap_transform(self, data: DataEntry, is_train: bool) -> Iterator[DataEntry]:
         full_length = data["target"].shape[-1]
-        for end_point in tqdm(range(self.window_length, full_length + 1)):
+        for end_point in range(self.window_length, full_length + 1):
             data_copy = data.copy()
             data_copy["target"] = data["target"][..., :end_point]
             self.num_windows_seen += 1
