@@ -64,7 +64,7 @@ class TACTISTrainer(Trainer):
         self.early_stopping_epochs = early_stopping_epochs
         self.do_not_restrict_time = do_not_restrict_time
 
-        if self.checkpoint_dir == None:
+        if self.checkpoint_dir is None:
             print("Checkpoints will not be saved")
         else:
             print("Checkpoints will be saved at", self.checkpoint_dir)
@@ -83,9 +83,9 @@ class TACTISTrainer(Trainer):
                 if param in p[0]:
                     print("Disabling gradient on", p[0])
                     p[1].requires_grad = False
-            if p[1].requires_grad == True:
+            if p[1].requires_grad is True:
                 total_enabled += 1
-            if p[1].requires_grad == False:
+            if p[1].requires_grad is False:
                 total_disabled += 1
             total_grads += 1
 
@@ -445,3 +445,47 @@ class TACTISTrainer(Trainer):
             epoch_no += 1
 
         return best_val_loss_unweighted
+
+    def validate(
+        self,
+        net: nn.Module,
+        validation_iter_args=None,
+    ):
+        if self.load_checkpoint:
+            assert os.path.isfile(self.load_checkpoint), "Checkpoint " + self.load_checkpoint + "is invalid"
+            print("Loading from checkpoint", self.load_checkpoint)
+            ckpt = torch.load(self.load_checkpoint, map_location=self.device)
+            net.load_state_dict(ckpt["model"])
+
+        # Note that the NLL you obtain from this function is only comparable to TACTiS-style architecture
+        # To make it comparable to non-TACTiS style architectures, you need to denormalize the loss of every sample/batch which is not currently implemented
+        print("Validation...")
+        batch_size = self.batch_size
+
+        if validation_iter_args is not None:
+            print("Creating a validation dataloader with a batch size of", batch_size)
+            validation_iter = ValidationDataLoader(**validation_iter_args, batch_size=batch_size)
+        validation_length = None
+        net.eval()
+        cumm_epoch_loss_val = 0.0
+
+        validation_num_windows_seen = 0
+        for batch_no, data_entry in enumerate(validation_iter, start=0):
+            inputs = [v.to(self.device) for v in data_entry.values()]
+            validation_num_windows_seen += len(inputs[0])
+            if validation_length:
+                inputs = [v[:, :validation_length] for v in inputs]
+            with torch.no_grad():
+                _ = net(*inputs)
+
+                marginal_logdet, copula_loss = (
+                    net.model.marginal_logdet,
+                    net.model.copula_loss,
+                )
+                loss = copula_loss - marginal_logdet
+
+            cumm_epoch_loss_val += loss.sum()
+
+        avg_epoch_loss_val = cumm_epoch_loss_val / validation_num_windows_seen
+
+        return avg_epoch_loss_val

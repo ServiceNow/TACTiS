@@ -35,7 +35,6 @@ from gluonts.transform import (
     RenameFields,
     ValidationSplitSampler,
     TestSplitSampler,
-    Transformation,
     cdf_to_gaussian_forward_transform,
 )
 from pts import Trainer
@@ -354,24 +353,6 @@ class TACTiSEstimator(PyTorchEstimator):
             predictor=self.create_predictor(transformation, trained_net, self.trainer.device),
         )
 
-    def compute_validation_metrics_estimator(self, **kwargs):
-        model = kwargs.pop("model")
-        eval_batch_size = kwargs.pop("eval_batch_size")
-        return_forecasts_and_targets = kwargs.pop("plot_matrices", False)
-        transformation = self.create_transformation()
-        device = self.trainer.device
-        predictor = self.create_predictor(transformation=transformation, trained_network=model, device=device)
-        predictor.batch_size = eval_batch_size
-        print("Setting validation predictor batch size to", eval_batch_size)
-        if return_forecasts_and_targets:
-            metrics, forecasts, targets = compute_validation_metrics(
-                predictor=predictor, return_forecasts_and_targets=True, **kwargs
-            )
-            return metrics, forecasts, targets
-        else:
-            metrics = compute_validation_metrics(predictor=predictor, return_forecasts_and_targets=False, **kwargs)
-            return metrics
-
     def train(
         self,
         training_data: Dataset,
@@ -394,3 +375,47 @@ class TACTiSEstimator(PyTorchEstimator):
             **kwargs,
         )
         return train_model_output
+
+    def validate_model(
+        self,
+        validation_data: Optional[Dataset] = None,
+        backtesting=False,
+    ):
+        transformation = self.create_transformation()
+
+        trained_net = self.create_training_network(self.trainer.device)
+
+        input_names = get_module_forward_input_names(trained_net)
+
+        validation_instance_splitter = self.create_instance_splitter("validation")
+
+        input_transform = transformation + validation_instance_splitter + SelectFields(input_names)
+        if not backtesting:
+            validation_iter_dataset = TransformedDataset(
+                validation_data,
+                transformation=SplitValidationTransform(self.history_length + self.prediction_length),
+            )
+        else:
+            validation_iter_dataset = validation_data
+        validation_iter_args = {
+            "dataset": validation_iter_dataset,
+            "transform": input_transform,
+            "stack_fn": lambda data: batchify(data, self.trainer.device),
+        }
+
+        nll = self.trainer.validate(
+            net=trained_net,
+            validation_iter_args=validation_iter_args,
+        )
+
+        return nll
+
+    def validate(
+        self,
+        validation_data: Optional[Dataset] = None,
+        backtesting: bool = False,
+    ):
+        return self.validate_model(
+            validation_data,
+            backtesting=backtesting,
+        )

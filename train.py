@@ -23,6 +23,7 @@ from tactis.gluon.dataset import (
     generate_prebacktesting_datasets,
 )
 from tactis.model.utils import check_memory
+from tactis.gluon.metrics import compute_validation_metrics, compute_validation_metrics_interpolation
 
 
 def main(args):
@@ -36,11 +37,10 @@ def main(args):
     learning_rate = args.learning_rate
     weight_decay = args.weight_decay
     clip_gradient = args.clip_gradient
+    checkpoint_dir = args.checkpoint_dir
 
     if args.use_cpu:
         print("Using CPU")
-
-    checkpoint_dir = args.checkpoint_dir
 
     # Print memory avl.
     if not args.use_cpu:
@@ -54,6 +54,17 @@ def main(args):
             fraction_to_use = 11598 / int(total)
             torch.cuda.set_per_process_memory_fraction(fraction_to_use, 0)
             print("Restricted memory to 12 GB")
+
+    if args.evaluate:
+        # Bagging is disabled during evaluation
+        args.bagging_size = None
+        # Assert that there is a checkpoint to evaluate
+        assert load_checkpoint, "Please set --load_checkpoint for evaluation"
+        # Get the stage of the model to evaluate
+        stage = torch.load(load_checkpoint)["stage"]
+        skip_copula = stage == 1
+    else:
+        skip_copula = True
 
     series_length_maps = {
         "solar_10min": 137,
@@ -133,7 +144,7 @@ def main(args):
             "activation_function": activation_function,
         },
         "experiment_mode": args.experiment_mode,
-        "skip_copula": True,
+        "skip_copula": skip_copula,
     }
 
     set_seed(seed)
@@ -156,10 +167,11 @@ def main(args):
         metadata, train_data, valid_data = generate_hp_search_datasets(dataset, history_factor)
 
     set_seed(seed)
+    history_length = history_factor * metadata.prediction_length
     estimator_custom = TACTiSEstimator(
         model_parameters=model_parameters,
         num_series=train_data.list_data[0]["target"].shape[0],
-        history_length=history_factor * metadata.prediction_length,
+        history_length=history_length,
         prediction_length=prediction_length,
         freq=metadata.freq,
         trainer=TACTISTrainer(
@@ -178,15 +190,48 @@ def main(args):
             do_not_restrict_time=args.do_not_restrict_time,
         ),
         cdf_normalization=False,
+        num_parallel_samples=100,
     )
 
-    estimator_custom.train(
-        train_data,
-        valid_data,
-        num_workers=num_workers,
-        optimizer=args.optimizer,
-        backtesting=backtesting,
-    )
+    if not args.evaluate:
+        estimator_custom.train(
+            train_data,
+            valid_data,
+            num_workers=num_workers,
+            optimizer=args.optimizer,
+            backtesting=backtesting,
+        )
+    else:
+        # Evaluate for NLL
+        nll = estimator_custom.validate(valid_data, backtesting=backtesting)
+        print("NLL:", nll.item())
+
+        # Evaluate for sampling-based metrics
+        transformation = estimator_custom.create_transformation()
+        device = estimator_custom.trainer.device
+        model = estimator_custom.create_training_network(device)
+        model_state_dict = torch.load(load_checkpoint)
+        model.load_state_dict(model_state_dict["model"])
+
+        predictor_custom = estimator_custom.create_predictor(
+            transformation=transformation,
+            trained_network=model,
+            device=device,
+            experiment_mode=args.experiment_mode,
+            history_length=history_factor * metadata.prediction_length,
+        )
+        predictor_custom.batch_size = args.batch_size
+
+        metrics, ts_wise_metrics, forecasts, targets = compute_validation_metrics(
+            predictor=predictor_custom,
+            dataset=valid_data,
+            window_length=history_length + prediction_length,
+            prediction_length=prediction_length,
+            num_samples=100,
+            split=False,
+            return_forecasts_and_targets=True,
+        )
+        print("Metrics:", metrics)
 
 
 if __name__ == "__main__":
@@ -204,7 +249,9 @@ if __name__ == "__main__":
         type=str,
         help="Folder to store all checkpoints in. This folder will be created automatically if it does not exist.",
     )
-    parser.add_argument("--load_checkpoint", type=str, help="Checkpoint to start training from.")
+    parser.add_argument(
+        "--load_checkpoint", type=str, help="Checkpoint to start training from or a checkpoint to evaluate."
+    )
     parser.add_argument(
         "--training_num_batches_per_epoch",
         type=int,
@@ -217,7 +264,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prebacktest",
         action="store_true",
-        help="When specified, uses the last few windows of the training set as the validation set. To be used only when training during backtesting.",
+        help="When specified, uses the last few windows of the training set as the validation set. To be used only when training during backtesting. Not to be used when we are evaluating the model.",
     )
     parser.add_argument(
         "--log_subparams_every",
@@ -342,6 +389,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_cpu", action="store_true", default=False, help="When enabled, CPU is used instead of GPU"
     )
+
+    # Flag for evaluation (either NLL or sampling and metrics)
+    # A checkpoint must be provided for evaluation TODO: Check for checkpoints
+    # Note evaluation is only supported after training the model in both phases.
+    parser.add_argument("--evaluate", action="store_true", help="Evaluate for NLL and metrics.")
 
     args = parser.parse_args()
 
