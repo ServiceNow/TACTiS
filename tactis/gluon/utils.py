@@ -16,6 +16,7 @@ import torch
 import numpy as np
 import os
 
+
 def set_seed(seed, deterministic=True):
     random.seed(seed)
     np.random.seed(seed)
@@ -26,6 +27,7 @@ def set_seed(seed, deterministic=True):
         torch.backends.cudnn.deterministic = deterministic
         torch.backends.cudnn.benchmark = False
     os.environ["PYTHONHASHSEED"] = str(seed)
+
 
 def save_checkpoint(state, checkpoint_dir, filename):
     if not os.path.isdir(checkpoint_dir):

@@ -22,16 +22,12 @@ def read(*paths, **kwargs):
 
 
 def read_requirements(path):
-    return [
-        line.strip()
-        for line in read(path).split("\n")
-        if not line.startswith(('"', "#", "-", "git+"))
-    ]
+    return [line.strip() for line in read(path).split("\n") if not line.startswith(('"', "#", "-", "git+"))]
 
 
 setup(
     name="tactis",
-    version="0.0.4",
+    version="0.0.5",
     description="Transformer-Attentional Copulas for Multivariate Time Series",
     url="https://github.com/ServiceNow/tactis/tree/tactis-2",
     long_description=read("README.md"),
@@ -39,5 +35,5 @@ setup(
     author="Arjun Ashok, Étienne Marcotte, Valentina Zantedeschi, Nicolas Chapados, Alexandre Drouin",
     packages=find_packages(),
     install_requires=read_requirements("requirements.txt"),
-    extras_require={"research": read_requirements("requirements_research.txt")}
+    extras_require={"research": read_requirements("requirements_research.txt")},
 )
