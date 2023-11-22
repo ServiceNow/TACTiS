@@ -35,6 +35,8 @@ class TACTISTrainer(Trainer):
     def __init__(
         self,
         epochs: int = 100,
+        epochs_phase_1 = None,
+        epochs_phase_2 = None,
         batch_size: int = 32,
         training_num_batches_per_epoch: int = 50,
         learning_rate: float = 1e-3,
@@ -49,7 +51,13 @@ class TACTISTrainer(Trainer):
         do_not_restrict_time=False,
         **kwargs,
     ) -> None:
+        """
+        When `epochs_phase_1` and `epochs_phase_2` are not specified, training is done for a total of `epochs` epochs, and `early_stopping_epochs` is used to switch from phase 1 to phase 2.
+        When `epochs_phase_1` and `epochs_phase_2` are specified, `early_stopping_epochs` is ignored, and phase 1 and phase 2 are trained for `epochs_phase_1` and `epochs_phase_2` epochs respectively.
+        """
         self.epochs = epochs
+        self.epochs_phase_1 = epochs_phase_1
+        self.epochs_phase_2 = epochs_phase_2
         self.batch_size = batch_size
         self.training_num_batches_per_epoch = training_num_batches_per_epoch
         self.learning_rate = learning_rate
@@ -228,7 +236,11 @@ class TACTISTrainer(Trainer):
 
         ## Iterator for the epochs
         switch_to_stage_2 = False
-        while epoch_no < self.epochs:
+        if self.epochs_phase_1 and self.epochs_phase_2:
+            total_epochs = self.epochs_phase_1 + self.epochs_phase_2
+        else:
+            total_epochs = self.epochs
+        while epoch_no < total_epochs:
             # Stage switching
             if switch_to_stage_2:
                 net.model.set_stage(2)
@@ -330,7 +342,7 @@ class TACTISTrainer(Trainer):
             total_training_only_time += training_epoch_end_time - training_epoch_start_time
 
             avg_epoch_loss = cumm_epoch_loss / training_num_windows_seen
-            print("Epoch:", epoch_no, "Average training loss:", avg_epoch_loss)
+            print("Epoch:", epoch_no, "Average training loss:", avg_epoch_loss.item())
 
             ####### VALIDATION #########
             ####### VALIDATION #########
@@ -378,7 +390,7 @@ class TACTISTrainer(Trainer):
             avg_epoch_loss_val = cumm_epoch_loss_val / validation_num_windows_seen
             avg_epoch_loss_val_unweighted = cumm_epoch_loss_val_unweighted / validation_num_windows_seen
 
-            print("Epoch:", epoch_no, "Average validation loss:", avg_epoch_loss_val)
+            print("Epoch:", epoch_no, "Average validation loss:", avg_epoch_loss_val.item())
 
             if best_val_loss_unweighted == None or avg_epoch_loss_val_unweighted < best_val_loss_unweighted:
                 best_val_loss_unweighted = avg_epoch_loss_val_unweighted
@@ -390,7 +402,7 @@ class TACTISTrainer(Trainer):
             print("Epochs since best epoch:", epochs_since_best_epoch)
 
             # If in stage 2, stop. If in stage 1, switch to stage 2 (taken care of in the )
-            if self.early_stopping_epochs != -1 and epochs_since_best_epoch == self.early_stopping_epochs:
+            if self.epochs_phase_1 is None and self.epochs_phase_2 is None and self.early_stopping_epochs != -1 and epochs_since_best_epoch == self.early_stopping_epochs:
                 if net.model.stage == 2:
                     print("Stopping criterion reached for stage 2. Stopping training.")
                     break
@@ -431,6 +443,12 @@ class TACTISTrainer(Trainer):
                         "saved at",
                         os.path.join(self.checkpoint_dir, filename),
                     )
+
+            # Check if epochs criterion is reached
+            if net.model.stage == 1 and self.epochs_phase_1 and epoch_no == self.epochs_phase_1 - 1:
+                switch_to_stage_2 = True
+            elif net.model.stage == 2 and self.epochs_phase_2 and epoch_no == self.epochs_phase_2 - 1:
+                break
 
             # Check if the training time criterion is reached
             if not self.do_not_restrict_time and total_training_only_time >= 129600:
