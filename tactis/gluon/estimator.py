@@ -347,11 +347,7 @@ class TACTiSEstimator(PyTorchEstimator):
             optimizer=optimizer,
         )
 
-        return TrainOutput(
-            transformation=transformation,
-            trained_net=trained_net,
-            predictor=self.create_predictor(transformation, trained_net, self.trainer.device),
-        )
+        return trained_net
 
     def train(
         self,
