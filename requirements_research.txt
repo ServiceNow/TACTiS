@@ -1,0 +1,2 @@
+gluonts==0.9.6
+pytorchts==0.6.0

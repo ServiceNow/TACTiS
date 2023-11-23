@@ -1,5 +1,5 @@
 """
-Copyright 2022 ServiceNow
+Copyright 2023 ServiceNow
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -9,14 +9,14 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
->> The methods to compute the metrics on the GluonTS forecast objects.
 """
 
 
 import os
+import gc
 import pickle
 import sys
+import torch
 from typing import Dict, Iterable, Iterator, Optional
 
 import numpy as np
@@ -24,9 +24,10 @@ import pandas as pd
 from gluonts import transform
 from gluonts.dataset.common import DataEntry, Dataset
 from gluonts.evaluation import MultivariateEvaluator
-from gluonts.evaluation.backtest import make_evaluation_predictions
 from gluonts.model.forecast import Forecast
 from gluonts.model.predictor import Predictor
+
+from tactis.gluon.backtest import make_evaluation_predictions
 
 
 class SplitValidationTransform(transform.FlatMapTransformation):
@@ -38,12 +39,14 @@ class SplitValidationTransform(transform.FlatMapTransformation):
     def __init__(self, window_length: int):
         super().__init__()
         self.window_length = window_length
+        self.num_windows_seen = 0
 
     def flatmap_transform(self, data: DataEntry, is_train: bool) -> Iterator[DataEntry]:
         full_length = data["target"].shape[-1]
-        for end_point in range(self.window_length, full_length):
+        for end_point in range(self.window_length, full_length + 1):
             data_copy = data.copy()
             data_copy["target"] = data["target"][..., :end_point]
+            self.num_windows_seen += 1
             yield data_copy
 
 
@@ -144,45 +147,44 @@ def compute_validation_metrics(
     predictor: Predictor,
     dataset: Dataset,
     window_length: int,
+    prediction_length: int,
     num_samples: int,
     split: bool = True,
     savedir: Optional[str] = None,
-) -> Dict[str, float]:
-    """
-    Compute GluonTS metrics for the given predictor and dataset.
-
-    Parameters:
-    -----------
-    predictor: Predictor
-        The trained model to predict with.
-    dataset: Dataset
-        The dataset on which the model will be tested.
-    window_length: int
-        The prediction length + history length of the model.
-    num_samples: int
-        How many samples will be generated from the stochastic predictions.
-    split: bool, default to True
-        If set to False, the dataset is used as is, normally with one prediction per entry in the dataset.
-        If set to True, the dataset is split into all possible subset, thus with one prediction per timestep in the dataset.
-        Normally should be set to True during HP search, since the HP search validation dataset has only one entry;
-        and set to False during backtesting, since the testing dataset has multiple entries.
-    savedir: None or str, default to None
-        If set, save the forecasts and the targets in a pickle file named forecasts_targets.pkl located in said location.
-
-    Returns:
-    --------
-    result: Dict[str, float]
-        A dictionary containing the various metrics.
-    """
+    return_forecasts_and_targets: bool = False,
+    subset_series=None,
+    skip_energy=True,
+    n_quantiles=20,
+):
     if split:
         split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
     else:
         split_dataset = dataset
-    forecast_it, ts_it = make_evaluation_predictions(
-        dataset=split_dataset, predictor=predictor, num_samples=num_samples
-    )
-    forecasts = list(forecast_it)
-    targets = list(ts_it)
+
+    while True:
+        print("Using batch size:", predictor.batch_size)
+        try:
+            forecast_it, ts_it = make_evaluation_predictions(
+                dataset=split_dataset, predictor=predictor, num_samples=num_samples
+            )
+            forecasts = list(forecast_it)
+            targets = list(ts_it)
+            break
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+            print(error)
+            if predictor.batch_size == 1:
+                print("Batch is already at the minimum. Cannot reduce further. Exiting...")
+                return None
+            else:
+                print("Caught OutOfMemoryError. Reducing batch size...")
+                predictor.batch_size //= 2
+                gc.collect()
+                torch.cuda.empty_cache()
+
+    if subset_series:
+        targets = [target.iloc[:, subset_series] for target in targets]
+        for target in targets:
+            target.columns = list(range(len(subset_series)))
 
     # A raw dump of the forecasts and targets for post-hoc analysis if needed, in the experiment folder
     # Can be loaded with the simple script:
@@ -199,37 +201,224 @@ def compute_validation_metrics(
         num_nan += np.isnan(forecast.samples).sum()
         num_inf += np.isinf(forecast.samples).sum()
     if num_nan > 0 or num_inf > 0:
-        return {
-            "CRPS": float("nan"),
-            "ND": float("nan"),
-            "NRMSE": float("nan"),
-            "MSE": float("nan"),
-            "CRPS-Sum": float("nan"),
-            "ND-Sum": float("nan"),
-            "NRMSE-Sum": float("nan"),
-            "MSE-Sum": float("nan"),
-            "Energy": float("nan"),
+        if skip_energy:
+            return {
+                "CRPS": float("nan"),
+                "ND": float("nan"),
+                "NRMSE": float("nan"),
+                "MSE": float("nan"),
+                "CRPS-Sum": float("nan"),
+                "ND-Sum": float("nan"),
+                "NRMSE-Sum": float("nan"),
+                "MSE-Sum": float("nan"),
+                "num_nan": num_nan,
+                "num_inf": num_inf,
+            }
+        else:
+            return {
+                "CRPS": float("nan"),
+                "ND": float("nan"),
+                "NRMSE": float("nan"),
+                "MSE": float("nan"),
+                "CRPS-Sum": float("nan"),
+                "ND-Sum": float("nan"),
+                "NRMSE-Sum": float("nan"),
+                "MSE-Sum": float("nan"),
+                "Energy": float("nan"),
+                "num_nan": num_nan,
+                "num_inf": num_inf,
+            }
+
+    # Evaluate the quality of the model
+    evaluator = MultivariateEvaluator(
+        quantiles=(np.arange(n_quantiles) / float(n_quantiles))[1:],
+        target_agg_funcs={"sum": np.sum},
+    )
+
+    # The GluonTS evaluator is very noisy on the standard error, so suppress it.
+    with SuppressOutput():
+        agg_metric, ts_wise_metrics = evaluator(targets, forecasts)
+
+    if skip_energy:
+        metrics = {
+            "CRPS": agg_metric.get("mean_wQuantileLoss", float("nan")),
+            "ND": agg_metric.get("ND", float("nan")),
+            "NRMSE": agg_metric.get("NRMSE", float("nan")),
+            "MSE": agg_metric.get("MSE", float("nan")),
+            "CRPS-Sum": agg_metric.get("m_sum_mean_wQuantileLoss", float("nan")),
+            "ND-Sum": agg_metric.get("m_sum_ND", float("nan")),
+            "NRMSE-Sum": agg_metric.get("m_sum_NRMSE", float("nan")),
+            "MSE-Sum": agg_metric.get("m_sum_MSE", float("nan")),
+            "num_nan": num_nan,
+            "num_inf": num_inf,
+        }
+    else:
+        metrics = {
+            "CRPS": agg_metric.get("mean_wQuantileLoss", float("nan")),
+            "ND": agg_metric.get("ND", float("nan")),
+            "NRMSE": agg_metric.get("NRMSE", float("nan")),
+            "MSE": agg_metric.get("MSE", float("nan")),
+            "CRPS-Sum": agg_metric.get("m_sum_mean_wQuantileLoss", float("nan")),
+            "ND-Sum": agg_metric.get("m_sum_ND", float("nan")),
+            "NRMSE-Sum": agg_metric.get("m_sum_NRMSE", float("nan")),
+            "MSE-Sum": agg_metric.get("m_sum_MSE", float("nan")),
+            "Energy": compute_energy_score(targets, forecasts),
             "num_nan": num_nan,
             "num_inf": num_inf,
         }
 
+    if return_forecasts_and_targets:
+        return metrics, ts_wise_metrics, forecasts, targets
+    else:
+        return metrics, ts_wise_metrics
+
+
+def compute_validation_metrics_interpolation(
+    predictor: Predictor,
+    dataset: Dataset,
+    window_length: int,
+    prediction_length: int,
+    num_samples: int,
+    split: bool = True,
+    savedir: Optional[str] = None,
+    return_forecasts_and_targets: bool = False,
+    subset_series=None,
+    skip_energy=True,
+    n_quantiles=20,
+):
+    history_length = window_length - prediction_length
+    if not split:
+        raise NotImplementedError(
+            "Evaluating only last window is not supported for interpolation. Use --compute_validation_metrics_split."
+        )
+    if split:
+        split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
+    else:
+        split_dataset = dataset
+
+    while True:
+        print("Using batch size:", predictor.batch_size)
+        try:
+            forecast_it, ts_it = make_evaluation_predictions(
+                dataset=split_dataset, predictor=predictor, num_samples=num_samples
+            )
+            forecasts = list(forecast_it)
+            targets = list(ts_it)
+            break
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+            print(error)
+            if predictor.batch_size == 1:
+                print("Batch is already at the minimum. Cannot reduce further. Exiting...")
+                return None
+            else:
+                print("Caught OutOfMemoryError. Reducing batch size...")
+                predictor.batch_size //= 2
+                gc.collect()
+                torch.cuda.empty_cache()
+
+    forecasts = list(forecast_it)
+    targets = list(ts_it)
+
+    if subset_series:
+        targets = [target.iloc[:, subset_series] for target in targets]
+        for target in targets:
+            target.columns = list(range(len(subset_series)))
+
+    # Restrict targets array to until the interpolated segment to make it look like a forecasting task to MultivariateEvaluator
+    # Also collect the start_date of the forecasts; and replace the forecast start_dates simultaneously
+    interpolation_segment_targets = []
+    interpolation_start_dates = []
+    interpolation_window_start = window_length - prediction_length - (history_length // 2)
+    interpolation_window_end = window_length - (history_length // 2)
+    end_ts = interpolation_window_end
+    for k, target in enumerate(targets):
+        modified_target = target.iloc[: end_ts + k]
+        interpolation_segment_targets.append(modified_target)
+        interpolation_start_dates.append(target.index[interpolation_window_start + k])
+        forecasts[k].start_date = target.index[interpolation_window_start + k]
+
+    # A raw dump of the forecasts and targets for post-hoc analysis if needed, in the experiment folder
+    # Can be loaded with the simple script:
+    if savedir:
+        savefile = os.path.join(savedir, "forecasts_targets.pkl")
+        with open(savefile, "wb") as f:
+            pickle.dump((forecasts, interpolation_segment_targets), f)
+
+    # The results are going to be meaningless if any NaN shows up in the results,
+    # so catch them here
+    num_nan = 0
+    num_inf = 0
+    for forecast in forecasts:
+        num_nan += np.isnan(forecast.samples).sum()
+        num_inf += np.isinf(forecast.samples).sum()
+    if num_nan > 0 or num_inf > 0:
+        if skip_energy:
+            return {
+                "CRPS": float("nan"),
+                "ND": float("nan"),
+                "NRMSE": float("nan"),
+                "MSE": float("nan"),
+                "CRPS-Sum": float("nan"),
+                "ND-Sum": float("nan"),
+                "NRMSE-Sum": float("nan"),
+                "MSE-Sum": float("nan"),
+                "num_nan": num_nan,
+                "num_inf": num_inf,
+            }
+        else:
+            return {
+                "CRPS": float("nan"),
+                "ND": float("nan"),
+                "NRMSE": float("nan"),
+                "MSE": float("nan"),
+                "CRPS-Sum": float("nan"),
+                "ND-Sum": float("nan"),
+                "NRMSE-Sum": float("nan"),
+                "MSE-Sum": float("nan"),
+                "Energy": float("nan"),
+                "num_nan": num_nan,
+                "num_inf": num_inf,
+            }
+
     # Evaluate the quality of the model
-    evaluator = MultivariateEvaluator(quantiles=(np.arange(20) / 20.0)[1:], target_agg_funcs={"sum": np.sum})
+    evaluator = MultivariateEvaluator(
+        quantiles=(np.arange(n_quantiles) / float(n_quantiles))[1:],
+        target_agg_funcs={"sum": np.sum},
+    )
 
     # The GluonTS evaluator is very noisy on the standard error, so suppress it.
     with SuppressOutput():
-        agg_metric, _ = evaluator(targets, forecasts)
+        agg_metric, _ = evaluator(interpolation_segment_targets, forecasts)
 
-    return {
-        "CRPS": agg_metric.get("mean_wQuantileLoss", float("nan")),
-        "ND": agg_metric.get("ND", float("nan")),
-        "NRMSE": agg_metric.get("NRMSE", float("nan")),
-        "MSE": agg_metric.get("MSE", float("nan")),
-        "CRPS-Sum": agg_metric.get("m_sum_mean_wQuantileLoss", float("nan")),
-        "ND-Sum": agg_metric.get("m_sum_ND", float("nan")),
-        "NRMSE-Sum": agg_metric.get("m_sum_NRMSE", float("nan")),
-        "MSE-Sum": agg_metric.get("m_sum_MSE", float("nan")),
-        "Energy": compute_energy_score(targets, forecasts),
-        "num_nan": num_nan,
-        "num_inf": num_inf,
-    }
+    if skip_energy:
+        metrics = {
+            "CRPS": agg_metric.get("mean_wQuantileLoss", float("nan")),
+            "ND": agg_metric.get("ND", float("nan")),
+            "NRMSE": agg_metric.get("NRMSE", float("nan")),
+            "MSE": agg_metric.get("MSE", float("nan")),
+            "CRPS-Sum": agg_metric.get("m_sum_mean_wQuantileLoss", float("nan")),
+            "ND-Sum": agg_metric.get("m_sum_ND", float("nan")),
+            "NRMSE-Sum": agg_metric.get("m_sum_NRMSE", float("nan")),
+            "MSE-Sum": agg_metric.get("m_sum_MSE", float("nan")),
+            "num_nan": num_nan,
+            "num_inf": num_inf,
+        }
+    else:
+        metrics = {
+            "CRPS": agg_metric.get("mean_wQuantileLoss", float("nan")),
+            "ND": agg_metric.get("ND", float("nan")),
+            "NRMSE": agg_metric.get("NRMSE", float("nan")),
+            "MSE": agg_metric.get("MSE", float("nan")),
+            "CRPS-Sum": agg_metric.get("m_sum_mean_wQuantileLoss", float("nan")),
+            "ND-Sum": agg_metric.get("m_sum_ND", float("nan")),
+            "NRMSE-Sum": agg_metric.get("m_sum_NRMSE", float("nan")),
+            "MSE-Sum": agg_metric.get("m_sum_MSE", float("nan")),
+            "Energy": compute_energy_score(interpolation_segment_targets, forecasts),
+            "num_nan": num_nan,
+            "num_inf": num_inf,
+        }
+
+    if return_forecasts_and_targets:
+        return metrics, forecasts, targets
+    else:
+        return metrics

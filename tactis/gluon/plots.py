@@ -1,5 +1,5 @@
 """
-Copyright 2022 ServiceNow
+Copyright 2023 ServiceNow
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -9,8 +9,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
->> Utility methods to plot forecasts generated with the GluonTS interface.
 """
 
 from typing import List, Tuple, Optional
@@ -27,7 +25,10 @@ from gluonts.model.forecast import Forecast
 
 
 def plot_single_forecast(
-    forecast: Forecast, target: pd.Series, axes: plt.Axes, locator: matplotlib.ticker.Locator
+    forecast: Forecast,
+    target: pd.Series,
+    axes: plt.Axes,
+    locator: matplotlib.ticker.Locator,
 ) -> None:
     """
     Plot the forecast for a single series, on the given Axes object.
@@ -177,7 +178,12 @@ def plot_four_forecasts(
         else:
             window_length = history_length + single_forecast.prediction_length
         single_target = target[series_num][-window_length:]
-        plot_single_forecast(forecast=single_forecast, target=single_target, axes=axs.flat[counter], locator=locator)
+        plot_single_forecast(
+            forecast=single_forecast,
+            target=single_target,
+            axes=axs.flat[counter],
+            locator=locator,
+        )
         counter += 1
     plt.subplots_adjust(hspace=0.3)
 
