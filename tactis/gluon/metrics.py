@@ -156,32 +156,6 @@ def compute_validation_metrics(
     skip_energy=True,
     n_quantiles=20,
 ):
-    """
-    Compute GluonTS metrics for the given predictor and dataset.
-
-    Parameters:
-    -----------
-    predictor: Predictor
-        The trained model to predict with.
-    dataset: Dataset
-        The dataset on which the model will be tested.
-    window_length: int
-        The prediction length + history length of the model.
-    num_samples: int
-        How many samples will be generated from the stochastic predictions.
-    split: bool, default to True
-        If set to False, the dataset is used as is, normally with one prediction per entry in the dataset.
-        If set to True, the dataset is split into all possible subset, thus with one prediction per timestep in the dataset.
-        Normally should be set to True during HP search, since the HP search validation dataset has only one entry;
-        and set to False during backtesting, since the testing dataset has multiple entries.
-    savedir: None or str, default to None
-        If set, save the forecasts and the targets in a pickle file named forecasts_targets.pkl located in said location.
-
-    Returns:
-    --------
-    result: Dict[str, float]
-        A dictionary containing the various metrics.
-    """
     if split:
         split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
     else:
@@ -312,32 +286,6 @@ def compute_validation_metrics_interpolation(
     skip_energy=True,
     n_quantiles=20,
 ):
-    """
-    Compute GluonTS metrics for the given predictor and dataset.
-
-    Parameters:
-    -----------
-    predictor: Predictor
-        The trained model to predict with.
-    dataset: Dataset
-        The dataset on which the model will be tested.
-    window_length: int
-        The prediction length + history length of the model.
-    num_samples: int
-        How many samples will be generated from the stochastic predictions.
-    split: bool, default to True
-        If set to False, the dataset is used as is, normally with one prediction per entry in the dataset.
-        If set to True, the dataset is split into all possible subset, thus with one prediction per timestep in the dataset.
-        Normally should be set to True during HP search, since the HP search validation dataset has only one entry;
-        and set to False during backtesting, since the testing dataset has multiple entries.
-    savedir: None or str, default to None
-        If set, save the forecasts and the targets in a pickle file named forecasts_targets.pkl located in said location.
-
-    Returns:
-    --------
-    result: Dict[str, float]
-        A dictionary containing the various metrics.
-    """
     history_length = window_length - prediction_length
     if not split:
         raise NotImplementedError(
