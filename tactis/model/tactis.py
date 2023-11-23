@@ -296,12 +296,10 @@ class TACTiS(nn.Module):
         self.flow_encoder_embedding_dim = self.flow_encoder.embedding_dim
         if not self.skip_copula:
             self.copula_encoder_embedding_dim = self.copula_encoder.embedding_dim
+            copula_decoder["attentional_copula"]["input_dim"] = self.copula_encoder_embedding_dim
 
         # Split input encoder
         # Series encoding, Positional encoding and input encoder (that transforms [x*m, c, m] into [z])
-        flow_dim = self.flow_encoder_embedding_dim
-        if not self.skip_copula:
-            copula_dim = self.copula_encoder_embedding_dim
         self.flow_series_encoder = nn.Embedding(num_embeddings=num_series, embedding_dim=self.flow_series_embedding_dim)
         if not self.skip_copula:
             self.copula_series_encoder = nn.Embedding(
@@ -310,9 +308,9 @@ class TACTiS(nn.Module):
             )
 
         if positional_encoding is not None:
-            self.flow_time_encoding = PositionalEncoding(flow_dim, **positional_encoding)
+            self.flow_time_encoding = PositionalEncoding(self.flow_encoder_embedding_dim, **positional_encoding)
             if not self.skip_copula:
-                self.copula_time_encoding = PositionalEncoding(copula_dim, **positional_encoding)
+                self.copula_time_encoding = PositionalEncoding(self.copula_encoder_embedding_dim, **positional_encoding)
         else:
             self.flow_time_encoding = None
             if not self.skip_copula:
@@ -321,9 +319,9 @@ class TACTiS(nn.Module):
         flow_elayers = nn.ModuleList([])
         for i in range(self.flow_input_encoder_layers):
             if i == 0:
-                flow_elayers.append(nn.Linear(self.flow_series_embedding_dim + 2, flow_dim))
+                flow_elayers.append(nn.Linear(self.flow_series_embedding_dim + 2, self.flow_encoder_embedding_dim))
             else:
-                flow_elayers.append(nn.Linear(flow_dim, flow_dim))
+                flow_elayers.append(nn.Linear(self.flow_encoder_embedding_dim, self.flow_encoder_embedding_dim))
             flow_elayers.append(nn.ReLU())
         self.flow_input_encoder = nn.Sequential(*flow_elayers)
 
@@ -332,16 +330,16 @@ class TACTiS(nn.Module):
             for i in range(self.copula_input_encoder_layers):
                 if i == 0:
                     copula_elayers.append(
-                        nn.Linear(self.copula_series_embedding_dim + 2, copula_dim)
+                        nn.Linear(self.copula_series_embedding_dim + 2, self.copula_encoder_embedding_dim)
                     )  # +1 for the value, +1 for the mask, and the per series embedding
                 else:
-                    copula_elayers.append(nn.Linear(copula_dim, copula_dim))
+                    copula_elayers.append(nn.Linear(self.copula_encoder_embedding_dim, self.copula_encoder_embedding_dim))
                 copula_elayers.append(nn.ReLU())
             self.copula_input_encoder = deepcopy(nn.Sequential(*copula_elayers))
 
         if copula_decoder is not None:
             flow_input_dim = self.flow_encoder_embedding_dim
-            copula_input_dim = None  # Since we do not have a copula encoder yet
+            copula_input_dim = None if self.skip_copula else self.copula_encoder_embedding_dim # Since we do not have a copula encoder yet
             self.decoder = CopulaDecoder(
                 flow_input_dim=flow_input_dim,
                 copula_input_dim=copula_input_dim,

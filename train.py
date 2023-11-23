@@ -134,14 +134,14 @@ def main(args):
                 "resolution": args.decoder_resolution,
                 "attention_mlp_class": args.decoder_attention_mlp_class,
                 "dropout": 0.0,
+                "activation_function": activation_function
             },
             "dsf_marginal": {
                 "mlp_layers": args.dsf_mlp_layers,
                 "mlp_dim": args.dsf_mlp_dim,
                 "flow_layers": args.dsf_num_layers,
                 "flow_hid_dim": args.dsf_dim,
-            },
-            "activation_function": activation_function,
+            }
         },
         "experiment_mode": args.experiment_mode,
         "skip_copula": skip_copula,
@@ -222,14 +222,13 @@ def main(args):
         )
         predictor_custom.batch_size = args.batch_size
 
-        metrics, ts_wise_metrics, forecasts, targets = compute_validation_metrics(
+        metrics, ts_wise_metrics = compute_validation_metrics(
             predictor=predictor_custom,
             dataset=valid_data,
             window_length=history_length + prediction_length,
             prediction_length=prediction_length,
             num_samples=100,
-            split=False,
-            return_forecasts_and_targets=True,
+            split=False
         )
         print("Metrics:", metrics)
 
@@ -391,7 +390,7 @@ if __name__ == "__main__":
     )
 
     # Flag for evaluation (either NLL or sampling and metrics)
-    # A checkpoint must be provided for evaluation TODO: Check for checkpoints
+    # A checkpoint must be provided for evaluation
     # Note evaluation is only supported after training the model in both phases.
     parser.add_argument("--evaluate", action="store_true", help="Evaluate for NLL and metrics.")
 

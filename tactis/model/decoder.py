@@ -71,7 +71,6 @@ class CopulaDecoder(nn.Module):
         skip_sampling_marginal: bool = False,
         attentional_copula: Optional[Dict[str, Any]] = None,
         dsf_marginal: Optional[Dict[str, Any]] = None,
-        activation_function="relu",
         skip_copula=False,
     ):
         """
@@ -104,13 +103,12 @@ class CopulaDecoder(nn.Module):
         self.skip_sampling_marginal = skip_sampling_marginal
         self.attentional_copula_args = attentional_copula
         self.dsf_marginal_args = dsf_marginal
-        self.activation_function = activation_function
         self.skip_copula = skip_copula
 
         if not self.skip_copula:
             if attentional_copula is not None:
                 self.copula = AttentionalCopula(
-                    input_dim=copula_input_dim, activation_function=activation_function, **attentional_copula
+                    **attentional_copula
                 )
 
         if dsf_marginal is not None:
