@@ -29,16 +29,16 @@ pip install tactis[research]
 
 Note: `tactis` has been currently tested with Python 3.10.8.
 
-## Details
+## Instructions
 
 With the `research` version of the code, [`train.py`](https://github.com/ServiceNow/tactis/blob/tactis-2/train.py) can be used to train the TACTiS-2 model for a specific dataset. The arguments in [`train.py`](https://github.com/ServiceNow/tactis/blob/tactis-2/train.py) can be used to specify the dataset, the training task (forecasting or interpolation), the hyperparameters of the model and a whole range of other training options.
-More features such as interfaces to evaluate the model and obtain metrics, as well as demo notebooks will be added to this codebase soon.
 
-For an implementation of the original version of TACTiS, please see [here](https://github.com/ServiceNow/tactis/tree/v1.0.0).
+There are notebooks in the that are useful in guiding training and evaluation pipeline setups: [`random_walk.ipynb`](https://github.com/ServiceNow/tactis/blob/demo/random_walk.ipynb) demonstrates TACTiS-2 on a simple low-dimensional random walk dataset, and `gluon_fred_md_forecasting.ipynb`](https://github.com/ServiceNow/tactis/blob/demo/gluon_fred_md_forecasting.ipynb) demonstrates how to train and evaluate TACTiS-2 on the [FRED-MD dataset](https://zenodo.org/records/4654833) used in the paper. Note that the [`gluon_fred_md_forecasting.ipynb`](https://github.com/ServiceNow/tactis/blob/demo/gluon_fred_md_forecasting.ipynb) notebook requires GluonTS and PyTorchTS to be installed.
+
 
 ## Note
 
-More features are coming soon!
+For an implementation of the [original version of TACTiS](https://arxiv.org/abs/2202.03528), please see [here](https://github.com/ServiceNow/tactis/tree/v1.0.0).
 
 ## Citing this work
 
