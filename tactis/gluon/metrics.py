@@ -326,7 +326,6 @@ def compute_validation_metrics_interpolation(
 
     # Restrict targets array to until the interpolated segment to make it look like a forecasting task to MultivariateEvaluator
     # Also collect the start_date of the forecasts; and replace the forecast start_dates simultaneously
-    # TODO: Verify this manually
     interpolation_segment_targets = []
     interpolation_start_dates = []
     interpolation_window_start = window_length - prediction_length - (history_length // 2)
