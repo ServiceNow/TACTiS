@@ -27,7 +27,7 @@ def read_requirements(path):
 
 setup(
     name="tactis",
-    version="0.0.6",
+    version="0.0.9",
     description="Transformer-Attentional Copulas for Multivariate Time Series",
     url="https://github.com/ServiceNow/tactis/tree/tactis-2",
     long_description=read("README.md"),
