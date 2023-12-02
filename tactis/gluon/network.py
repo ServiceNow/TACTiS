@@ -187,6 +187,9 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
         samples: torch.Tensor [samples, batch, time steps, series]
             Samples from the forecasted distribution.
         """
+        # Note that the prediction window is taken from the history 
+        # So the history window contains an extra `prediction length` horizon by default in interpolation
+
         # The data coming from Gluon is not in the shape we use in the model, so transpose it.
         hist_value = past_target_norm.transpose(1, 2)
 
@@ -194,6 +197,7 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
         hist_time = torch.arange(0, hist_value.shape[2], dtype=int, device=hist_value.device)[None, :].expand(
             hist_value.shape[0], -1
         )
+        # Dummy `pred_time` to be compatible with the sample() function
         pred_time = torch.arange(
             hist_value.shape[2],
             hist_value.shape[2] + self.prediction_length,
@@ -208,10 +212,15 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
             pred_time=pred_time,
         )
 
-        total_length = samples.shape[2]
-        interpolation_window_start = total_length - self.prediction_length - (self.history_length // 2)
-        interpolation_window_end = total_length - (self.history_length // 2)
+        # Extract the window interpolated
+        # For example, if the prediction length is 12, then the returned Tensor is 
+        # of shape (observed values length) + prediction length
+        # i.e. it is the same as self.history_length (TODO: to verify)
+        # Say this is 24 + 12 = 36
+        # total_observed_timesteps_on_each_side was 12. History was 0:12 and 24:36
+        # Interpolation was performed at 12:24
+        num_timesteps_observed_on_each_side = (self.history_length - self.prediction_length) // 2
 
         # The model decoder returns both the observed and sampled values, so removed the observed ones.
         # Also, reorder from [batch, series, time steps, samples] to GluonTS expected [batch, samples, time steps, series].
-        return samples[:, :, interpolation_window_start:interpolation_window_end, :].permute((0, 3, 2, 1))
+        return samples[:, :, num_timesteps_observed_on_each_side : num_timesteps_observed_on_each_side+self.prediction_length, :].permute((0, 3, 2, 1))
