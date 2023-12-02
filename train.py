@@ -11,6 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+# Ignore warnings to get a clean output
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
+
 import torch
 import argparse
 
@@ -24,7 +29,6 @@ from tactis.gluon.dataset import (
 )
 from tactis.model.utils import check_memory
 from tactis.gluon.metrics import compute_validation_metrics, compute_validation_metrics_interpolation
-
 
 def main(args):
     seed = args.seed
@@ -86,6 +90,11 @@ def main(args):
     prediction_length = prediction_length_maps[dataset]
     print("Using history factor:", history_factor)
     print("Prediction length of the dataset:", prediction_length_maps[dataset])
+
+    # If it is evaluation for interpolation, we use a trick to perform interpolation with GluonTS
+    # Increase history factor by 1, and get the interpolation prediction window from the history window itself
+    # This may be refactored later if we remove the GluonTS dependency for the sample() functions for interpolation
+    if args.experiment_mode == "interpolation": history_factor += 1        
 
     if args.bagging_size:
         assert args.bagging_size < series_length_maps[dataset]
@@ -202,34 +211,40 @@ def main(args):
             backtesting=backtesting,
         )
     else:
-        # Evaluate for NLL
-        nll = estimator_custom.validate(valid_data, backtesting=backtesting)
-        print("NLL:", nll.item())
-
         # Evaluate for sampling-based metrics
         transformation = estimator_custom.create_transformation()
         device = estimator_custom.trainer.device
         model = estimator_custom.create_training_network(device)
-        model_state_dict = torch.load(load_checkpoint)
-        model.load_state_dict(model_state_dict["model"])
+        # model_state_dict = torch.load(load_checkpoint)
+        # model.load_state_dict(model_state_dict["model"])
 
         predictor_custom = estimator_custom.create_predictor(
             transformation=transformation,
             trained_network=model,
             device=device,
             experiment_mode=args.experiment_mode,
-            history_length=history_factor * metadata.prediction_length,
+            history_length=estimator_custom.history_length,
         )
         predictor_custom.batch_size = args.batch_size
 
-        metrics, ts_wise_metrics = compute_validation_metrics(
-            predictor=predictor_custom,
-            dataset=valid_data,
-            window_length=history_length + prediction_length,
-            prediction_length=prediction_length,
-            num_samples=100,
-            split=False
-        )
+        if args.experiment_mode == "forecasting":
+            metrics, ts_wise_metrics = compute_validation_metrics(
+                predictor=predictor_custom,
+                dataset=valid_data,
+                window_length=estimator_custom.history_length + prediction_length,
+                prediction_length=prediction_length,
+                num_samples=100,
+                split=True
+            )
+        elif args.experiment_mode == "interpolation":
+            metrics, ts_wise_metrics = compute_validation_metrics_interpolation(
+                predictor=predictor_custom,
+                dataset=valid_data,
+                window_length=estimator_custom.history_length,
+                prediction_length=prediction_length,
+                num_samples=100,
+                split=True
+            )
         print("Metrics:", metrics)
 
 
