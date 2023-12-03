@@ -94,7 +94,7 @@ def main(args):
     # If it is evaluation for interpolation, we use a trick to perform interpolation with GluonTS
     # Increase history factor by 1, and get the interpolation prediction window from the history window itself
     # This may be refactored later if we remove the GluonTS dependency for the sample() functions for interpolation
-    if args.experiment_mode == "interpolation": history_factor += 1        
+    if args.experiment_mode == "interpolation" and args.evaluate: history_factor += 1        
 
     if args.bagging_size:
         assert args.bagging_size < series_length_maps[dataset]
@@ -215,8 +215,8 @@ def main(args):
         transformation = estimator_custom.create_transformation()
         device = estimator_custom.trainer.device
         model = estimator_custom.create_training_network(device)
-        # model_state_dict = torch.load(load_checkpoint)
-        # model.load_state_dict(model_state_dict["model"])
+        model_state_dict = torch.load(load_checkpoint)
+        model.load_state_dict(model_state_dict["model"])
 
         predictor_custom = estimator_custom.create_predictor(
             transformation=transformation,
