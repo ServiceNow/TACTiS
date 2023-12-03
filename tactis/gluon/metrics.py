@@ -285,16 +285,11 @@ def compute_validation_metrics_interpolation(
     subset_series=None,
     skip_energy=True,
     n_quantiles=20,
-):
-    history_length = window_length - prediction_length
-    if not split:
-        raise NotImplementedError(
-            "Evaluating only last window is not supported for interpolation. Use --compute_validation_metrics_split."
-        )
+):  
     if split:
         split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
     else:
-        split_dataset = dataset
+        raise Exception("split=False is not support in compute_validation_metrics_interpolation")
 
     while True:
         print("Using batch size:", predictor.batch_size)
@@ -316,33 +311,43 @@ def compute_validation_metrics_interpolation(
                 gc.collect()
                 torch.cuda.empty_cache()
 
-    forecasts = list(forecast_it)
-    targets = list(ts_it)
-
     if subset_series:
         targets = [target.iloc[:, subset_series] for target in targets]
         for target in targets:
             target.columns = list(range(len(subset_series)))
 
+    # Store the original targets (interpolation "before" + prediction window + interpolation "after") for plotting/visualization purposes
+    full_targets = []
     # Restrict targets array to until the interpolated segment to make it look like a forecasting task to MultivariateEvaluator
     # Also collect the start_date of the forecasts; and replace the forecast start_dates simultaneously
+    # interpolation_segment_targets is the targets
     interpolation_segment_targets = []
-    interpolation_start_dates = []
-    interpolation_window_start = window_length - prediction_length - (history_length // 2)
-    interpolation_window_end = window_length - (history_length // 2)
+    num_timesteps_observed_on_each_side = (window_length - prediction_length) // 2
+    interpolation_window_start = num_timesteps_observed_on_each_side
+    interpolation_window_end = num_timesteps_observed_on_each_side + prediction_length
     end_ts = interpolation_window_end
+
     for k, target in enumerate(targets):
-        modified_target = target.iloc[: end_ts + k]
+        # Calculate offset
+        offset = len(target) - window_length
+        # Obtain and store the actual target window for interpolation
+        modified_target = target.iloc[interpolation_window_start + offset : end_ts + offset]
         interpolation_segment_targets.append(modified_target)
-        interpolation_start_dates.append(target.index[interpolation_window_start + k])
-        forecasts[k].start_date = target.index[interpolation_window_start + k]
+        # Modify the start date of the window to the right one, overriding the one set by GluonTS based on the forecasting window
+        forecasts[k].start_date = target.index[interpolation_window_start + offset]
+
+        ## Store the original targets
+        full_targets.append(target.iloc[offset : end_ts + num_timesteps_observed_on_each_side + offset])
+
+    # Set targets to the new targets array
+    targets = interpolation_segment_targets
 
     # A raw dump of the forecasts and targets for post-hoc analysis if needed, in the experiment folder
     # Can be loaded with the simple script:
     if savedir:
-        savefile = os.path.join(savedir, "forecasts_targets.pkl")
+        savefile = os.path.join(savedir, "interpolation_targets.pkl")
         with open(savefile, "wb") as f:
-            pickle.dump((forecasts, interpolation_segment_targets), f)
+            pickle.dump((forecasts, targets), f)
 
     # The results are going to be meaningless if any NaN shows up in the results,
     # so catch them here
@@ -388,7 +393,7 @@ def compute_validation_metrics_interpolation(
 
     # The GluonTS evaluator is very noisy on the standard error, so suppress it.
     with SuppressOutput():
-        agg_metric, _ = evaluator(interpolation_segment_targets, forecasts)
+        agg_metric, ts_wise_metrics = evaluator(targets, forecasts)
 
     if skip_energy:
         metrics = {
@@ -413,12 +418,13 @@ def compute_validation_metrics_interpolation(
             "ND-Sum": agg_metric.get("m_sum_ND", float("nan")),
             "NRMSE-Sum": agg_metric.get("m_sum_NRMSE", float("nan")),
             "MSE-Sum": agg_metric.get("m_sum_MSE", float("nan")),
-            "Energy": compute_energy_score(interpolation_segment_targets, forecasts),
+            "Energy": compute_energy_score(targets, forecasts),
             "num_nan": num_nan,
             "num_inf": num_inf,
         }
 
     if return_forecasts_and_targets:
-        return metrics, forecasts, targets
+        # Note: we return the full targets since we need that for plotting
+        return metrics, ts_wise_metrics, forecasts, full_targets
     else:
-        return metrics
+        return metrics, ts_wise_metrics

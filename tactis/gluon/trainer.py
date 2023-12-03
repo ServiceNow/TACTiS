@@ -287,7 +287,7 @@ class TACTISTrainer(Trainer):
 
             net.train()
 
-            print("Epoch:", epoch_no, "/", self.epochs)
+            print("Epoch:", epoch_no, "/", total_epochs)
             print("Training...")
             set_seed(epoch_no + self.seed)
             cumm_epoch_loss = 0.0

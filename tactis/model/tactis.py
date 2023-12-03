@@ -658,7 +658,7 @@ class TACTiS(nn.Module):
             missing_values = all_values[
                 :,
                 :,
-                total_observed_timesteps_on_each_side : total_observed_timesteps_on_each_side + num_pred_timesteps,
+                total_observed_timesteps_on_each_side : -total_observed_timesteps_on_each_side,
             ]
             normalizer = self.data_normalization(observed_values)
             observed_values = normalizer.normalize(observed_values)
