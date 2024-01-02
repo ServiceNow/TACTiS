@@ -285,7 +285,7 @@ def compute_validation_metrics_interpolation(
     subset_series=None,
     skip_energy=True,
     n_quantiles=20,
-):  
+):
     if split:
         split_dataset = transform.TransformedDataset(dataset, transformation=SplitValidationTransform(window_length))
     else:
