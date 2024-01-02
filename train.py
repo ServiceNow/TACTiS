@@ -31,7 +31,6 @@ from tactis.gluon.dataset import (
 from tactis.model.utils import check_memory
 from tactis.gluon.metrics import compute_validation_metrics, compute_validation_metrics_interpolation
 
-
 def main(args):
     seed = args.seed
     num_workers = args.num_workers
