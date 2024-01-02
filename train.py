@@ -13,8 +13,9 @@ limitations under the License.
 
 # Ignore warnings to get a clean output
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.simplefilter(action='ignore', category=UserWarning)
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+warnings.simplefilter(action="ignore", category=UserWarning)
 
 import torch
 import argparse
@@ -29,6 +30,7 @@ from tactis.gluon.dataset import (
 )
 from tactis.model.utils import check_memory
 from tactis.gluon.metrics import compute_validation_metrics, compute_validation_metrics_interpolation
+
 
 def main(args):
     seed = args.seed
@@ -94,7 +96,8 @@ def main(args):
     # If it is evaluation for interpolation, we use a trick to perform interpolation with GluonTS
     # Increase history factor by 1, and get the interpolation prediction window from the history window itself
     # This may be refactored later if we remove the GluonTS dependency for the sample() functions for interpolation
-    if args.experiment_mode == "interpolation" and args.evaluate: history_factor += 1        
+    if args.experiment_mode == "interpolation" and args.evaluate:
+        history_factor += 1
 
     if args.bagging_size:
         assert args.bagging_size < series_length_maps[dataset]
@@ -143,14 +146,14 @@ def main(args):
                 "resolution": args.decoder_resolution,
                 "attention_mlp_class": args.decoder_attention_mlp_class,
                 "dropout": 0.0,
-                "activation_function": activation_function
+                "activation_function": activation_function,
             },
             "dsf_marginal": {
                 "mlp_layers": args.dsf_mlp_layers,
                 "mlp_dim": args.dsf_mlp_dim,
                 "flow_layers": args.dsf_num_layers,
                 "flow_hid_dim": args.dsf_dim,
-            }
+            },
         },
         "experiment_mode": args.experiment_mode,
         "skip_copula": skip_copula,
@@ -197,6 +200,7 @@ def main(args):
             load_checkpoint=load_checkpoint,
             early_stopping_epochs=args.early_stopping_epochs,
             do_not_restrict_time=args.do_not_restrict_time,
+            skip_batch_size_search=args.skip_batch_size_search,
         ),
         cdf_normalization=False,
         num_parallel_samples=100,
@@ -234,7 +238,7 @@ def main(args):
                 window_length=estimator_custom.history_length + prediction_length,
                 prediction_length=prediction_length,
                 num_samples=100,
-                split=True
+                split=True,
             )
         elif args.experiment_mode == "interpolation":
             metrics, ts_wise_metrics = compute_validation_metrics_interpolation(
@@ -243,7 +247,7 @@ def main(args):
                 window_length=estimator_custom.history_length,
                 prediction_length=prediction_length,
                 num_samples=100,
-                split=True
+                split=True,
             )
         print("Metrics:", metrics)
 
@@ -252,7 +256,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=42, help="Seed.")
     parser.add_argument("--num_workers", type=int, default=4, help="Number of multiprocessing workers.")
-    parser.add_argument("--batch_size", type=int, default=1, help="Batch Size.")
+    parser.add_argument("--batch_size", type=int, default=256, help="Batch Size.")
     parser.add_argument("--epochs", type=int, default=1000, help="Epochs.")
 
     parser.add_argument(
@@ -391,12 +395,21 @@ if __name__ == "__main__":
 
     # Don't restrict memory / time
     parser.add_argument(
-        "--do_not_restrict_memory", action="store_true", help="When enabled, memory is not restricted to 12 GB"
+        "--do_not_restrict_memory",
+        action="store_true",
+        help="When enabled, memory is NOT restricted to 12 GB. Note that for all models in the paper, we used a GPU memory of 12 GB.",
     )
     parser.add_argument(
         "--do_not_restrict_time",
         action="store_true",
-        help="When enabled, total training time is not restricted to 3 days",
+        help="When enabled, total training time is NOT restricted to 3 days. Note that for all models in the paper, we used a maximum training time of 3 days.",
+    )
+
+    # Skip batch size search
+    parser.add_argument(
+        "--skip_batch_size_search",
+        action="store_true",
+        help="When enabled, batch size search is NOT performed. Note that for all models in the paper, we used the batch size search to maximize the batch size within the 12 GB GPU memory constraint.",
     )
 
     # CPU

@@ -33,3 +33,9 @@ def save_checkpoint(state, checkpoint_dir, filename):
     if not os.path.isdir(checkpoint_dir):
         os.mkdir(checkpoint_dir)
     torch.save(state, os.path.join(checkpoint_dir, filename))
+
+
+def load_checkpoint(checkpoint_file, model, device):
+    ckpt = torch.load(checkpoint_file, map_location=device)
+    model.load_state_dict(ckpt["model"])
+    return model
