@@ -333,13 +333,17 @@ class TACTiS(nn.Module):
                         nn.Linear(self.copula_series_embedding_dim + 2, self.copula_encoder_embedding_dim)
                     )  # +1 for the value, +1 for the mask, and the per series embedding
                 else:
-                    copula_elayers.append(nn.Linear(self.copula_encoder_embedding_dim, self.copula_encoder_embedding_dim))
+                    copula_elayers.append(
+                        nn.Linear(self.copula_encoder_embedding_dim, self.copula_encoder_embedding_dim)
+                    )
                 copula_elayers.append(nn.ReLU())
             self.copula_input_encoder = deepcopy(nn.Sequential(*copula_elayers))
 
         if copula_decoder is not None:
             flow_input_dim = self.flow_encoder_embedding_dim
-            copula_input_dim = None if self.skip_copula else self.copula_encoder_embedding_dim # Since we do not have a copula encoder yet
+            copula_input_dim = (
+                None if self.skip_copula else self.copula_encoder_embedding_dim
+            )  # Since we do not have a copula encoder yet
             self.decoder = CopulaDecoder(
                 flow_input_dim=flow_input_dim,
                 copula_input_dim=copula_input_dim,
@@ -658,7 +662,7 @@ class TACTiS(nn.Module):
             missing_values = all_values[
                 :,
                 :,
-                total_observed_timesteps_on_each_side : -total_observed_timesteps_on_each_side,
+                total_observed_timesteps_on_each_side:-total_observed_timesteps_on_each_side,
             ]
             normalizer = self.data_normalization(observed_values)
             observed_values = normalizer.normalize(observed_values)

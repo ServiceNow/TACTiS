@@ -187,7 +187,7 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
         samples: torch.Tensor [samples, batch, time steps, series]
             Samples from the forecasted distribution.
         """
-        # Note that the prediction window is taken from the history 
+        # Note that the prediction window is taken from the history
         # So the history window contains an extra `prediction length` horizon by default in interpolation
 
         # The data coming from Gluon is not in the shape we use in the model, so transpose it.
@@ -213,7 +213,7 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
         )
 
         # Extract the window interpolated
-        # For example, if the prediction length is 12, then the returned Tensor is 
+        # For example, if the prediction length is 12, then the returned Tensor is
         # of shape (observed values length) + prediction length
         # i.e. it is the same as self.history_length (TODO: to verify)
         # Say this is 24 + 12 = 36
@@ -223,4 +223,6 @@ class TACTiSPredictionNetworkInterpolation(nn.Module):
 
         # The model decoder returns both the observed and sampled values, so removed the observed ones.
         # Also, reorder from [batch, series, time steps, samples] to GluonTS expected [batch, samples, time steps, series].
-        return samples[:, :, num_timesteps_observed_on_each_side : num_timesteps_observed_on_each_side+self.prediction_length, :].permute((0, 3, 2, 1))
+        return samples[
+            :, :, num_timesteps_observed_on_each_side : num_timesteps_observed_on_each_side + self.prediction_length, :
+        ].permute((0, 3, 2, 1))
