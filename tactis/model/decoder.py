@@ -107,9 +107,7 @@ class CopulaDecoder(nn.Module):
 
         if not self.skip_copula:
             if attentional_copula is not None:
-                self.copula = AttentionalCopula(
-                    **attentional_copula
-                )
+                self.copula = AttentionalCopula(**attentional_copula)
 
         if dsf_marginal is not None:
             self.marginal = DSFMarginal(context_dim=flow_input_dim, **dsf_marginal)
