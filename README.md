@@ -1,10 +1,10 @@
 # TACTiS-2: Better, Faster, Simpler Attentional Copulas for Multivariate Time Series
 
-Arjun Ashok, Étienne Marcotte, Valentina Zantedeschi, Nicolas Chapados, Alexandre Drouin (2023). *[TACTiS-2: Better, Faster, Simpler Attentional Copulas for Multivariate Time Series](https://arxiv.org/abs/2310.01327)*. (Preprint)
+Arjun Ashok, Étienne Marcotte, Valentina Zantedeschi, Nicolas Chapados, Alexandre Drouin (2023). *[TACTiS-2: Better, Faster, Simpler Attentional Copulas for Multivariate Time Series](https://arxiv.org/abs/2310.01327)*. (Accepted at ICLR 2024)
 
 > We introduce a new model for multivariate probabilistic time series prediction, designed to flexibly address a range of tasks including forecasting, interpolation, and their combinations. Building on copula theory, we propose a simplified objective for the recently-introduced transformer-based attentional copulas (TACTiS), wherein the number of distributional parameters now scales linearly with the number of variables instead of factorially. The new objective requires the introduction of a training curriculum, which goes hand-in-hand with necessary changes to the original architecture. We show that the resulting model has significantly better training dynamics and achieves state-of-the-art performance across diverse real-world forecasting tasks, while maintaining the flexibility of prior work, such as seamless handling of unaligned and unevenly-sampled time series.
 
-[[Preprint]](https://arxiv.org/abs/2310.01327)
+[[Paper]](https://arxiv.org/abs/2310.01327)
 
 <br />
 
